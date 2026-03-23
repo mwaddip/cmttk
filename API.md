@@ -1,0 +1,401 @@
+# cmttk API Reference
+
+All exports are available from the main entry point:
+
+```typescript
+import { deriveWallet, getProvider, buildAndSubmitTransfer, ... } from "cmttk";
+```
+
+Subpath imports are also available for tree-shaking:
+
+```typescript
+import { Constr, Data } from "cmttk/data";
+import { getProvider } from "cmttk/provider";
+```
+
+---
+
+## Wallet (`cmttk/wallet`)
+
+### `deriveWallet(mnemonic, network)`
+
+Derive a Cardano wallet from a BIP39 mnemonic phrase using CIP-1852 derivation paths.
+
+```typescript
+function deriveWallet(mnemonic: string, network: CardanoNetwork): Promise<CardanoWallet>
+```
+
+**Derivation paths:**
+- Payment key: `m/1852'/1815'/0'/0/0`
+- Stake key: `m/1852'/1815'/0'/2/0`
+
+**Returns:**
+
+```typescript
+interface CardanoWallet {
+  paymentKey: Uint8Array;      // 64-byte extended private key (kL + kR)
+  paymentPubKey: Uint8Array;   // 32-byte Ed25519 public key
+  paymentKeyHash: string;      // blake2b-224 hash (56 hex chars)
+  stakeKey: Uint8Array;
+  stakePubKey: Uint8Array;
+  stakeKeyHash: string;
+  address: string;             // bech32 base address (addr1... or addr_test1...)
+  network: CardanoNetwork;
+}
+```
+
+---
+
+## Transaction Builder (`cmttk/tx`)
+
+### `buildAndSubmitTransfer(params)`
+
+Build, sign, and submit a simple ADA or native token transfer. Handles UTXO query, coin selection, fee calculation, signing, and submission.
+
+```typescript
+function buildAndSubmitTransfer(params: {
+  provider: CardanoProvider;
+  fromAddress: string;           // sender bech32 address
+  toAddress: string;             // recipient bech32 address
+  assets: Assets;                // { lovelace: bigint, [unit]: bigint }
+  signingKey: Uint8Array;        // 64-byte extended private key
+}): Promise<string>              // returns tx hash
+```
+
+### `buildAndSubmitScriptTx(params)`
+
+Build, sign, and submit a transaction with Plutus script execution. Supports script spending, minting/burning, inline datums, redeemers, validity ranges, and required signers.
+
+```typescript
+function buildAndSubmitScriptTx(params: {
+  provider: CardanoProvider;
+  walletAddress: string;         // wallet for fee/collateral UTXOs
+  scriptInputs: ScriptInput[];   // script UTXOs to spend
+  outputs: TxOutput[];           // explicit outputs (change is automatic)
+  mints?: MintEntry[];           // mint/burn with Plutus policy
+  spendingScriptCbor?: string;   // PlutusV3 spending validator (compiledCode hex)
+  validFrom?: number;            // POSIX ms (converted to slots automatically)
+  validTo?: number;              // POSIX ms
+  network?: CardanoNetwork;      // for slot conversion (default: "preprod")
+  requiredSigners?: string[];    // payment key hashes (hex)
+  signingKey: Uint8Array;        // 64-byte extended private key
+}): Promise<string>              // returns tx hash
+```
+
+### Supporting types
+
+```typescript
+interface Utxo {
+  txHash: string;
+  index: number;
+  lovelace: bigint;
+  tokens: Record<string, bigint>;  // "policyId+assetName" → quantity
+}
+
+interface Assets {
+  lovelace: bigint;
+  [unit: string]: bigint;         // "policyId+assetName" → quantity
+}
+
+interface ScriptInput {
+  utxo: Utxo;
+  address: string;                // bech32 address where the UTXO sits
+  redeemerCbor: string;           // Plutus Data CBOR hex (from Data.to())
+}
+
+interface TxOutput {
+  address: string;                // bech32 destination
+  assets: Assets;
+  datumCbor?: string;             // inline datum CBOR hex (from Data.to())
+}
+
+interface MintEntry {
+  policyId: string;               // 56 hex chars
+  assets: Record<string, bigint>; // assetNameHex → quantity (negative to burn)
+  redeemerCbor: string;           // Plutus Data CBOR hex
+  scriptCbor: string;             // compiledCode hex from plutus.json
+}
+```
+
+### `parseKoiosUtxos(raw)`
+
+Parse the raw JSON response from Koios `/address_utxos` into typed `Utxo[]`.
+
+```typescript
+function parseKoiosUtxos(raw: unknown[]): Utxo[]
+```
+
+### `selectUtxos(utxos, required)`
+
+Greedy coin selection. Picks UTXOs until all requirements are met.
+
+```typescript
+function selectUtxos(utxos: Utxo[], required: Assets): {
+  selected: Utxo[];
+  inputTotal: Assets;
+}
+```
+
+Throws if requirements cannot be met.
+
+### `calculateFee(txSizeBytes, pp, exUnits?)`
+
+Deterministic fee calculation from protocol parameters.
+
+```typescript
+function calculateFee(
+  txSizeBytes: number,
+  pp: ProtocolParams,
+  exUnits?: { mem: bigint; steps: bigint },
+): bigint
+```
+
+Formula: `minFeeA * size + minFeeB + ceil(priceMem * mem) + ceil(priceStep * steps)`
+
+### `addressToHex(addr)`
+
+Decode a bech32 Cardano address to raw hex bytes.
+
+```typescript
+function addressToHex(addr: string): string
+```
+
+### `buildOutputCbor(addrHex, lovelace, tokens?)`
+
+Build CBOR for a single transaction output.
+
+```typescript
+function buildOutputCbor(
+  addrHex: string,
+  lovelace: bigint,
+  tokens?: [string, bigint][],
+): Uint8Array
+```
+
+---
+
+## Plutus Data (`cmttk/data`)
+
+### `Constr`
+
+Plutus Data constructor. Matches Lucid's `Constr` API.
+
+```typescript
+class Constr<T = PlutusField> {
+  readonly index: number;
+  readonly fields: T[];
+  constructor(index: number, fields: T[]);
+}
+```
+
+CBOR tag mapping:
+- `Constr(0)` through `Constr(6)` → CBOR tags 121–127
+- `Constr(7+)` → CBOR tag 102 + `[index, fields]`
+
+Aiken boolean convention: `True` = `Constr(1, [])`, `False` = `Constr(0, [])`
+
+### `Data.to(value)`
+
+Encode a Plutus Data value to CBOR hex string.
+
+```typescript
+Data.to(value: PlutusField): string
+```
+
+Accepts `bigint`, hex `string` (encoded as bytes), `Uint8Array`, `Constr`, arrays, and `Map`.
+
+### `Data.from(cborHex)`
+
+Decode CBOR hex back to Plutus Data. Preserves nested `Constr` tags.
+
+```typescript
+Data.from(cborHex: string): PlutusField
+```
+
+### `fromText(text)`
+
+Convert a UTF-8 string to hex encoding (for Plutus `ByteArray` fields).
+
+```typescript
+function fromText(text: string): string
+```
+
+### `PlutusField`
+
+Union type for all valid Plutus Data values:
+
+```typescript
+type PlutusField =
+  | bigint
+  | number
+  | string              // hex-encoded bytes
+  | Uint8Array
+  | Constr<PlutusField>
+  | PlutusField[]
+  | Map<PlutusField, PlutusField>;
+```
+
+---
+
+## Provider (`cmttk/provider`)
+
+### `getProvider(network, blockfrostProjectId?)`
+
+Create or return a cached chain query provider. Uses Koios by default (free, no API key). Pass a Blockfrost project ID to use Blockfrost instead.
+
+```typescript
+function getProvider(
+  network: CardanoNetwork,
+  blockfrostProjectId?: string,
+): CardanoProvider
+```
+
+### `resetProvider()`
+
+Clear the cached provider (useful in tests).
+
+### `CardanoProvider` interface
+
+```typescript
+interface CardanoProvider {
+  readonly name: string;
+  fetchUtxos(address: string, asset?: string): Promise<unknown[]>;
+  fetchTip(): Promise<{ slot: number; block: number; time: number }>;
+  submitTx(txCbor: string): Promise<string>;
+  fetchTxMetadata(txHash: string): Promise<unknown[]>;
+  fetchAddressTransactions(address: string, options?: { count?: number; order?: "asc" | "desc" }): Promise<unknown[]>;
+  fetchAssetAddresses(asset: string): Promise<Array<{ address: string; quantity: string }>>;
+  fetchAddressInfo(address: string): Promise<unknown>;
+  fetchProtocolParams(): Promise<ProtocolParams>;
+}
+```
+
+### `ProtocolParams`
+
+```typescript
+interface ProtocolParams {
+  minFeeA: number;           // lovelace per byte
+  minFeeB: number;           // fixed fee component
+  coinsPerUtxoByte: number;  // for min UTXO calculation
+  costModelV3?: number[];    // PlutusV3 cost model (297 values)
+  priceMem: number;          // lovelace per memory unit (decimal)
+  priceStep: number;         // lovelace per CPU step (decimal)
+}
+```
+
+---
+
+## Address (`cmttk/address`)
+
+### `isValidAddress(addr)`
+
+Validate a Cardano bech32 address (`addr1...` or `addr_test1...`).
+
+```typescript
+function isValidAddress(addr: string): boolean
+```
+
+### `isValidPolicyId(policyId)`
+
+Validate a policy ID (56 hex characters).
+
+```typescript
+function isValidPolicyId(policyId: string): boolean
+```
+
+### `getPaymentKeyHash(addr)`
+
+Extract the 28-byte payment key hash from a bech32 address. Returns `null` for script addresses or addresses without a key hash payment credential.
+
+```typescript
+function getPaymentKeyHash(addr: string): string | null
+```
+
+### `normalizeAddress(addr)`
+
+Lowercase normalize an address string.
+
+```typescript
+function normalizeAddress(addr: string): string
+```
+
+---
+
+## Time (`cmttk/time`)
+
+### `posixToSlot(posixMs, network)`
+
+Convert POSIX milliseconds to an absolute Cardano slot number.
+
+```typescript
+function posixToSlot(posixMs: number, network: CardanoNetwork): number
+```
+
+### `slotToPosix(slot, network)`
+
+Convert an absolute slot number to POSIX milliseconds.
+
+```typescript
+function slotToPosix(slot: number, network: CardanoNetwork): number
+```
+
+**Shelley genesis times (immutable per network):**
+
+| Network | Shelley start (ms) | Slot length |
+|---|---|---|
+| preprod | 1655683200000 | 1 second |
+| preview | 1666656000000 | 1 second |
+| mainnet | 1591566291000 | 1 second |
+
+---
+
+## CBOR (`cmttk/cbor`)
+
+Low-level CBOR encoder/decoder. You typically don't need these directly — `Data.to/from` and the transaction builder handle CBOR internally. Exposed for advanced use cases (custom datum formats, raw transaction construction).
+
+### Encoder
+
+```typescript
+function cborUint(n: number | bigint): Uint8Array
+function cborBytes(data: Uint8Array | string): Uint8Array    // string = hex
+function cborArray(items: Uint8Array[]): Uint8Array           // items must be pre-encoded
+function cborMap(entries: [Uint8Array, Uint8Array][]): Uint8Array
+function cborTag(tagNum: number, content: Uint8Array): Uint8Array
+function cborHeader(major: number, n: number | bigint): Uint8Array
+```
+
+### Decoder
+
+```typescript
+function decodeCbor(bytes: Uint8Array, pos: number): CborDecoded
+
+interface CborDecoded {
+  value: CborValue;
+  offset: number;   // position after the decoded item
+}
+
+type CborValue =
+  | bigint | boolean | null | undefined | string | number
+  | Uint8Array | CborValue[] | Map<CborValue, CborValue>;
+```
+
+### Byte utilities
+
+```typescript
+function hexToBytes(hex: string): Uint8Array
+function bytesToHex(bytes: Uint8Array): string
+function concatBytes(arrays: Uint8Array[]): Uint8Array
+```
+
+---
+
+## Types (`cmttk/types`)
+
+```typescript
+type CardanoNetwork = "mainnet" | "preprod" | "preview";
+
+interface AssetId {
+  policyId: string;    // 56 hex chars
+  assetName: string;   // hex-encoded
+}
+```
