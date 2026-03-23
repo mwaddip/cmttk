@@ -1,0 +1,56 @@
+{
+  "name": "cmttk",
+  "version": "0.1.0",
+  "description": "Cardano Minimal Transaction Toolkit — pure TypeScript, no WASM",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./cbor": "./dist/cbor.js",
+    "./data": "./dist/data.js",
+    "./tx": "./dist/tx.js",
+    "./provider": "./dist/provider.js",
+    "./address": "./dist/address.js",
+    "./time": "./dist/time.js",
+    "./wallet": "./dist/wallet.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "noble-bip32ed25519": "github:mwaddip/noble-bip32ed25519",
+    "@noble/curves": "^1.8.0",
+    "@noble/hashes": "^1.7.0",
+    "bech32": "^2.0.0",
+    "bip39": "^3.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "src",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mwaddip/cmttk.git"
+  },
+  "keywords": [
+    "cardano",
+    "transaction",
+    "cbor",
+    "plutus",
+    "aiken",
+    "typescript",
+    "no-wasm"
+  ]
+}
