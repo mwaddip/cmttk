@@ -35,8 +35,6 @@ export interface Utxo {
   lovelace: bigint;
   /** Tokens as { "policyId+assetNameHex": quantity } */
   tokens: Record<string, bigint>;
-  /** True if this UTXO carries a reference script — should not be spent casually */
-  hasReferenceScript?: boolean;
 }
 
 /** Assets for a transaction output. lovelace is always present. */
@@ -93,7 +91,6 @@ export function parseKoiosUtxos(raw: unknown[]): Utxo[] {
       index: Number(u["tx_index"] ?? 0),
       lovelace: BigInt((u["value"] as string) ?? "0"),
       tokens,
-      hasReferenceScript: u["reference_script"] != null,
     };
   });
 }
@@ -115,9 +112,6 @@ export function selectUtxos(
 
   for (const utxo of utxos) {
     if (remaining.size === 0) break;
-
-    // Skip UTXOs carrying reference scripts — spending them would destroy deployed validators
-    if (utxo.hasReferenceScript) continue;
 
     let useful = false;
     if (remaining.has("lovelace") && utxo.lovelace > 0n) useful = true;
