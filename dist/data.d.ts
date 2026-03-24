@@ -28,4 +28,17 @@ export declare const Data: {
 };
 /** Convert a UTF-8 string to hex — replaces Lucid's fromText(). */
 export declare function fromText(text: string): string;
+/**
+ * Apply Plutus Data parameters to an unparameterized UPLC script (from plutus.json).
+ *
+ * Each parameter wraps the program in a UPLC Apply(program, Const(Data, param))
+ * node. Fully decodes and re-encodes the flat UPLC to handle bytestring alignment.
+ *
+ * Compatible with CIP-57 / Aiken / Lucid encoding conventions.
+ *
+ * @param compiledCode - hex-encoded CBOR from plutus.json (a CBOR byte string wrapping flat UPLC)
+ * @param params - Plutus Data parameters to apply (left-to-right = outermost lambda first)
+ * @returns new compiledCode hex string with parameters applied
+ */
+export declare function applyParamsToScript(compiledCode: string, params: PlutusField[]): string;
 //# sourceMappingURL=data.d.ts.map

@@ -23,7 +23,7 @@ export {
 export type { CborValue, CborDecoded } from "./cbor.js";
 
 // Plutus Data codec
-export { Constr, Data, fromText } from "./data.js";
+export { Constr, Data, fromText, applyParamsToScript } from "./data.js";
 export type { PlutusField } from "./data.js";
 
 // Transaction builder

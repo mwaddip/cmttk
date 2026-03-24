@@ -8,7 +8,7 @@
  */
 export { hexToBytes, bytesToHex, concatBytes, cborHeader, cborUint, cborBytes, cborArray, cborMap, cborTag, decodeCbor, } from "./cbor.js";
 export type { CborValue, CborDecoded } from "./cbor.js";
-export { Constr, Data, fromText } from "./data.js";
+export { Constr, Data, fromText, applyParamsToScript } from "./data.js";
 export type { PlutusField } from "./data.js";
 export { parseKoiosUtxos, selectUtxos, calculateFee, addressToHex, buildOutputCbor, buildAndSubmitTransfer, buildAndSubmitScriptTx, } from "./tx.js";
 export type { Utxo, Assets, ScriptInput, TxOutput, MintEntry } from "./tx.js";

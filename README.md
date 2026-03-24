@@ -129,6 +129,35 @@ const txHash = await buildAndSubmitScriptTx({
 });
 ```
 
+### Apply parameters to Aiken validators
+
+```typescript
+import { applyParamsToScript } from "cmttk";
+import { blake2b } from "@noble/hashes/blake2b";
+import { hexToBytes, bytesToHex, cborBytes } from "cmttk/cbor";
+import plutus from "./plutus.json" with { type: "json" };
+
+const serverKeyHash = "2dbdd41304e95e4a1846c045328d746bf2267a0a619ec55976e7beb1";
+
+// Apply parameters to the subscription validator (2 params)
+const subValidator = plutus.validators.find(v => v.title === "subscription.subscription.spend")!;
+const subCode = applyParamsToScript(subValidator.compiledCode, [serverKeyHash, serverKeyHash]);
+
+// Compute the script hash (for deriving the validator address)
+function scriptHash(compiledCode: string): string {
+  const bytes = hexToBytes(compiledCode);
+  const preimage = new Uint8Array(1 + bytes.length);
+  preimage[0] = 0x03; // PlutusV3 prefix
+  preimage.set(bytes, 1);
+  return bytesToHex(blake2b(preimage, { dkLen: 28 }));
+}
+const subHash = scriptHash(subCode); // use as policy ID or to derive validator address
+
+// Chain: apply subscription hash to beacon validator
+const beaconValidator = plutus.validators.find(v => v.title === "beacon.beacon.mint")!;
+const beaconCode = applyParamsToScript(beaconValidator.compiledCode, [subHash]);
+```
+
 ### Encode Plutus Data
 
 ```typescript
@@ -150,7 +179,7 @@ const decoded = Data.from(cborHex);
 
 ## Migrating from Lucid / MeshJS
 
-Replace `Lucid()` / `MeshTxBuilder` initialization with `getProvider()` + `deriveWallet()`. Replace `lucid.newTx().pay.ToAddress()...complete()...sign()...submit()` chains with a single `buildAndSubmitTransfer()` or `buildAndSubmitScriptTx()` call. Replace `import { Constr, Data } from "@lucid-evolution/lucid"` with `import { Constr, Data } from "cmttk"` — the API is identical. Replace `getAddressDetails(addr).paymentCredential.hash` with `getPaymentKeyHash(addr)`. If you used `applyParamsToScript`, apply parameters at build time with `aiken blueprint apply` instead — the compiled code in `plutus.json` should have all parameters baked in before deployment. Blockfrost and Koios are both supported through `getProvider("preprod", optionalBlockfrostId)` with the same query interface.
+Replace `Lucid()` / `MeshTxBuilder` initialization with `getProvider()` + `deriveWallet()`. Replace `lucid.newTx().pay.ToAddress()...complete()...sign()...submit()` chains with a single `buildAndSubmitTransfer()` or `buildAndSubmitScriptTx()` call. Replace `import { Constr, Data } from "@lucid-evolution/lucid"` with `import { Constr, Data } from "cmttk"` — the API is identical. Replace `getAddressDetails(addr).paymentCredential.hash` with `getPaymentKeyHash(addr)`. `applyParamsToScript` is a drop-in replacement for Lucid's — same signature, same behavior. Blockfrost and Koios are both supported through `getProvider("preprod", optionalBlockfrostId)` with the same query interface.
 
 ## What it does not do
 
@@ -180,7 +209,7 @@ See [API.md](./API.md) for the complete function and type reference.
 cmttk/src/
   index.ts      barrel export
   cbor.ts       CBOR encoder/decoder (all major types)
-  data.ts       Plutus Data: Constr, Data.to/from, fromText
+  data.ts       Plutus Data: Constr, Data.to/from, fromText, applyParamsToScript
   tx.ts         transaction builder, coin selection, fee calc
   provider.ts   Koios + Blockfrost (native fetch)
   wallet.ts     CIP-1852 key derivation from BIP39 mnemonic

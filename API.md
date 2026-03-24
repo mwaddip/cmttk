@@ -220,6 +220,36 @@ Convert a UTF-8 string to hex encoding (for Plutus `ByteArray` fields).
 function fromText(text: string): string
 ```
 
+### `applyParamsToScript(compiledCode, params)`
+
+Apply Plutus Data parameters to an unparameterized UPLC script from `plutus.json`. Each parameter wraps the program in a UPLC `Apply(program, Const(Data, param))` node. Compatible with Aiken's `blueprint apply`, Lucid, and MeshJS.
+
+```typescript
+function applyParamsToScript(compiledCode: string, params: PlutusField[]): string
+```
+
+- `compiledCode` — hex-encoded CBOR from `plutus.json` (the `validators[].compiledCode` field)
+- `params` — parameters to apply, left-to-right (first param = outermost lambda)
+- Returns the new `compiledCode` with parameters applied
+
+Parameters are typically 28-byte key hashes or script hashes (passed as hex strings), but any `PlutusField` value is supported.
+
+```typescript
+import { applyParamsToScript } from "cmttk";
+
+// Apply server_key_hash to an Aiken validator
+const parameterized = applyParamsToScript(
+  validator.compiledCode,
+  ["2dbdd41304e95e4a1846c045328d746bf2267a0a619ec55976e7beb1"],
+);
+
+// Multiple parameters are applied left-to-right
+const fullyApplied = applyParamsToScript(code, [param1, param2]);
+// Equivalent to: applyParamsToScript(applyParamsToScript(code, [param1]), [param2])
+```
+
+Internally, this fully decodes and re-encodes the UPLC flat binary format. This is necessary because the flat encoding's bytestring alignment is position-dependent — wrapping in an Apply node shifts all subsequent byte boundaries. See [APPLY_PARAMS_SPEC.md](./APPLY_PARAMS_SPEC.md) for implementation details.
+
 ### `PlutusField`
 
 Union type for all valid Plutus Data values:
