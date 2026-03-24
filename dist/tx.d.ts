@@ -17,6 +17,8 @@ export interface Utxo {
     lovelace: bigint;
     /** Tokens as { "policyId+assetNameHex": quantity } */
     tokens: Record<string, bigint>;
+    /** True if this UTXO carries a reference script — should not be spent casually */
+    hasReferenceScript?: boolean;
 }
 /** Assets for a transaction output. lovelace is always present. */
 export interface Assets {

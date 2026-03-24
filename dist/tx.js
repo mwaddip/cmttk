@@ -58,6 +58,7 @@ export function parseKoiosUtxos(raw) {
             index: Number(u["tx_index"] ?? 0),
             lovelace: BigInt(u["value"] ?? "0"),
             tokens,
+            hasReferenceScript: u["reference_script"] != null,
         };
     });
 }
@@ -74,6 +75,9 @@ export function selectUtxos(utxos, required) {
     for (const utxo of utxos) {
         if (remaining.size === 0)
             break;
+        // Skip UTXOs carrying reference scripts — spending them would destroy deployed validators
+        if (utxo.hasReferenceScript)
+            continue;
         let useful = false;
         if (remaining.has("lovelace") && utxo.lovelace > 0n)
             useful = true;
