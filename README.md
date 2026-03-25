@@ -28,12 +28,12 @@ Chain queries go through Koios (free, no API key) or Blockfrost (optional, with 
 ## Installation
 
 ```bash
-npm install github:mwaddip/cmttk
+npm install github:mwaddip/cmttk#v0.2.1
 ```
 
 Or add to `package.json`:
 ```json
-"cmttk": "github:mwaddip/cmttk"
+"cmttk": "github:mwaddip/cmttk#v0.2.1"
 ```
 
 ## Quick start
@@ -134,7 +134,7 @@ const txHash = await buildAndSubmitScriptTx({
 ```typescript
 import { applyParamsToScript } from "cmttk";
 import { blake2b } from "@noble/hashes/blake2b";
-import { hexToBytes, bytesToHex, cborBytes } from "cmttk/cbor";
+import { hexToBytes, bytesToHex } from "cmttk/cbor";
 import plutus from "./plutus.json" with { type: "json" };
 
 const serverKeyHash = "2dbdd41304e95e4a1846c045328d746bf2267a0a619ec55976e7beb1";
@@ -179,7 +179,7 @@ const decoded = Data.from(cborHex);
 
 ## Migrating from Lucid / MeshJS
 
-Replace `Lucid()` / `MeshTxBuilder` initialization with `getProvider()` + `deriveWallet()`. Replace `lucid.newTx().pay.ToAddress()...complete()...sign()...submit()` chains with a single `buildAndSubmitTransfer()` or `buildAndSubmitScriptTx()` call. Replace `import { Constr, Data } from "@lucid-evolution/lucid"` with `import { Constr, Data } from "cmttk"` — the API is identical. Replace `getAddressDetails(addr).paymentCredential.hash` with `getPaymentKeyHash(addr)`. `applyParamsToScript` is a drop-in replacement for Lucid's — same signature, same behavior. Blockfrost and Koios are both supported through `getProvider("preprod", optionalBlockfrostId)` with the same query interface.
+Replace `Lucid()` / `MeshTxBuilder` initialization with `getProvider()` + `deriveWallet()`. Replace `lucid.newTx().pay.ToAddress()...complete()...sign()...submit()` chains with a single `buildAndSubmitTransfer()` or `buildAndSubmitScriptTx()` call. Replace `import { Constr, Data } from "@lucid-evolution/lucid"` with `import { Constr, Data } from "cmttk"` — the API is identical. Replace `getAddressDetails(addr).paymentCredential.hash` with `getPaymentKeyHash(addr)`. `applyParamsToScript` is a drop-in replacement for Lucid's — same signature, same behavior. Blockfrost and Koios are both supported through `getProvider("preprod", blockfrostId?, koiosUrl?)` with the same query interface.
 
 ## What it does not do
 

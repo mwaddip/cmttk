@@ -269,16 +269,19 @@ type PlutusField =
 
 ## Provider (`cmttk/provider`)
 
-### `getProvider(network, blockfrostProjectId?)`
+### `getProvider(network, blockfrostProjectId?, koiosUrl?)`
 
-Create or return a cached chain query provider. Uses Koios by default (free, no API key). Pass a Blockfrost project ID to use Blockfrost instead.
+Create or return a cached chain query provider. Uses Koios by default (free, no API key). Pass a Blockfrost project ID to use Blockfrost instead. Pass a custom Koios URL to override the default endpoint (useful for private instances or endpoint rotation).
 
 ```typescript
 function getProvider(
   network: CardanoNetwork,
   blockfrostProjectId?: string,
+  koiosUrl?: string,
 ): CardanoProvider
 ```
+
+When `koiosUrl` is provided and no Blockfrost ID is set, the Koios provider uses the custom URL instead of the hardcoded default for that network.
 
 ### `resetProvider()`
 
