@@ -323,17 +323,22 @@ export async function buildAndSubmitTransfer(params: {
 
   function buildOutputs(fee: bigint): Uint8Array[] {
     const outs: Uint8Array[] = [];
+    const changeLv = inputTotal.lovelace - assets.lovelace - fee;
+
+    // When change is too small for a separate output and there are no change tokens,
+    // add it to the recipient output to avoid losing dust ADA.
+    const dustChange = changeLv > 0n && changeLv < 1000000n && changeTokens.length === 0;
+    const recipientLv = dustChange ? assets.lovelace + changeLv : assets.lovelace;
 
     // Recipient output
     if (hasTokens) {
-      outs.push(buildOutputCbor(toAddrHex, assets.lovelace, tokenEntries));
+      outs.push(buildOutputCbor(toAddrHex, recipientLv, tokenEntries));
     } else {
-      outs.push(buildOutputCbor(toAddrHex, assets.lovelace));
+      outs.push(buildOutputCbor(toAddrHex, recipientLv));
     }
 
-    // Change output
-    const changeLv = inputTotal.lovelace - assets.lovelace - fee;
-    if (changeLv >= 1000000n || changeTokens.length > 0) {
+    // Change output (only when enough for min UTxO or tokens need returning)
+    if (!dustChange && (changeLv >= 1000000n || changeTokens.length > 0)) {
       const actualChangeLv = changeLv < 1000000n ? 1000000n : changeLv;
       if (changeTokens.length > 0) {
         outs.push(buildOutputCbor(fromAddrHex, actualChangeLv, changeTokens));
