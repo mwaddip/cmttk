@@ -12,7 +12,7 @@
  *   - Constr → recursive Plutus Data
  *   - Array → CBOR list of Plutus Data items
  */
-import { cborHeader, cborUint, cborBytes, cborArray, cborMap, cborTag, decodeCbor, hexToBytes, bytesToHex, } from "./cbor.js";
+import { cborHeader, cborUint, cborBytes, cborArray, cborMap, cborTag, decodeCbor, hexToBytes, bytesToHex, concatBytes, } from "./cbor.js";
 // ── Constr ──────────────────────────────────────────────────────────────────
 /** Plutus Data constructor — matches Lucid's Constr API. */
 export class Constr {
@@ -24,13 +24,28 @@ export class Constr {
     }
 }
 // ── Encode ──────────────────────────────────────────────────────────────────
+/**
+ * Encode a bytestring for Plutus Data CBOR. Cardano nodes reject definite-length
+ * bytestrings > 64 bytes inside Plutus Data. For lengths > 64, use CBOR
+ * indefinite-length encoding: 0x5F + 64-byte chunks + 0xFF break.
+ */
+function plutusBytes(data) {
+    if (data.length <= 64)
+        return cborBytes(data);
+    const parts = [new Uint8Array([0x5f])]; // indefinite-length byte string
+    for (let i = 0; i < data.length; i += 64) {
+        parts.push(cborBytes(data.subarray(i, Math.min(i + 64, data.length))));
+    }
+    parts.push(new Uint8Array([0xff])); // break
+    return concatBytes(parts);
+}
 /** Encode a Plutus Data value to CBOR bytes. */
 function encodeField(field) {
     if (field instanceof Constr) {
         return encodeConstr(field);
     }
     if (field instanceof Uint8Array) {
-        return cborBytes(field);
+        return plutusBytes(field);
     }
     if (Array.isArray(field)) {
         return cborArray(field.map(encodeField));
@@ -53,7 +68,7 @@ function encodeField(field) {
     }
     if (typeof field === "string") {
         // Hex string → bytes
-        return cborBytes(hexToBytes(field));
+        return plutusBytes(hexToBytes(field));
     }
     throw new Error(`Unsupported Plutus Data field type: ${typeof field}`);
 }
