@@ -472,10 +472,38 @@ export async function buildAndSubmitScriptTx(params: {
     ? outputLovelace - scriptInputLovelace + maxFee + collateralAmount
     : maxFee + collateralAmount;
 
-  const { selected: walletSelected, inputTotal: walletInputTotal } = selectUtxos(
-    walletUtxos,
-    { lovelace: adaNeeded },
-  );
+  // Pre-select the best ADA-only UTxO for collateral before greedy selection.
+  // The greedy selector doesn't guarantee an ADA-only UTxO ends up in the set,
+  // so we reserve one upfront and run coin selection on the remainder.
+  let collateralUtxo: Utxo | undefined;
+  let selectionPool = walletUtxos;
+  let adjustedAdaNeeded = adaNeeded;
+
+  if (hasScripts) {
+    const adaOnly = walletUtxos
+      .filter(u => Object.keys(u.tokens).length === 0)
+      .sort((a, b) => Number(b.lovelace - a.lovelace));
+    if (adaOnly.length === 0) {
+      throw new Error("No ADA-only UTXOs available for collateral — send ADA to a clean UTXO first");
+    }
+    collateralUtxo = adaOnly[0]!;
+    selectionPool = walletUtxos.filter(u => !(u.txHash === collateralUtxo!.txHash && u.index === collateralUtxo!.index));
+    adjustedAdaNeeded = adaNeeded > collateralUtxo.lovelace ? adaNeeded - collateralUtxo.lovelace : 0n;
+  }
+
+  const { selected: walletCoinSelected, inputTotal: walletInputTotal } = adjustedAdaNeeded > 0n
+    ? selectUtxos(selectionPool, { lovelace: adjustedAdaNeeded })
+    : { selected: [] as Utxo[], inputTotal: { lovelace: 0n } as Assets };
+
+  // Prepend collateral UTxO so it's always in the input set
+  const walletSelected = collateralUtxo
+    ? [collateralUtxo, ...walletCoinSelected]
+    : walletCoinSelected;
+
+  // Adjust inputTotal to include collateral
+  if (collateralUtxo) {
+    walletInputTotal.lovelace += collateralUtxo.lovelace;
+  }
 
   // 3. Build the transaction body fields
 
@@ -687,13 +715,8 @@ export async function buildAndSubmitScriptTx(params: {
     }
 
     // Collateral (fields 13, 16, 17) — required for any Plutus script execution
-    if (hasScripts && walletSelected.length > 0) {
-      // Pick an ADA-only UTXO with the most ADA for collateral
-      const adaOnlyUtxos = walletSelected.filter(u => Object.keys(u.tokens).length === 0);
-      if (adaOnlyUtxos.length === 0) {
-        throw new Error("No ADA-only UTXOs available for collateral — send ADA to a clean UTXO first");
-      }
-      const collUtxo = adaOnlyUtxos.sort((a, b) => Number(b.lovelace - a.lovelace))[0]!;
+    if (hasScripts && collateralUtxo) {
+      const collUtxo = collateralUtxo;
       // Field 13: collateral inputs
       bodyFields.push([
         cborUint(13n),
