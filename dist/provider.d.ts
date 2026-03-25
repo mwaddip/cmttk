@@ -39,7 +39,7 @@ export interface ProtocolParams {
     priceStep: number;
 }
 /** Create or return a cached CardanoProvider. Uses Koios by default. */
-export declare function getProvider(network: CardanoNetwork, blockfrostProjectId?: string): CardanoProvider;
+export declare function getProvider(network: CardanoNetwork, blockfrostProjectId?: string, koiosUrl?: string): CardanoProvider;
 /** Reset the cached provider (for testing) */
 export declare function resetProvider(): void;
 //# sourceMappingURL=provider.d.ts.map

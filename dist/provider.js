@@ -17,8 +17,8 @@ class KoiosProvider {
     baseUrl;
     static MAX_RETRIES = 4;
     static BASE_DELAY_MS = 1000;
-    constructor(network) {
-        this.baseUrl = KOIOS_URLS[network];
+    constructor(network, baseUrl) {
+        this.baseUrl = baseUrl ?? KOIOS_URLS[network];
     }
     async request(path, options) {
         const url = `${this.baseUrl}${path}`;
@@ -198,12 +198,12 @@ class BlockfrostProvider {
 // ── Factory ─────────────────────────────────────────────────────────────────
 let _provider = null;
 /** Create or return a cached CardanoProvider. Uses Koios by default. */
-export function getProvider(network, blockfrostProjectId) {
+export function getProvider(network, blockfrostProjectId, koiosUrl) {
     if (_provider)
         return _provider;
     _provider = blockfrostProjectId
         ? new BlockfrostProvider(blockfrostProjectId, network)
-        : new KoiosProvider(network);
+        : new KoiosProvider(network, koiosUrl);
     return _provider;
 }
 /** Reset the cached provider (for testing) */

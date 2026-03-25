@@ -48,8 +48,8 @@ class KoiosProvider implements CardanoProvider {
   private static MAX_RETRIES = 4;
   private static BASE_DELAY_MS = 1000;
 
-  constructor(network: CardanoNetwork) {
-    this.baseUrl = KOIOS_URLS[network];
+  constructor(network: CardanoNetwork, baseUrl?: string) {
+    this.baseUrl = baseUrl ?? KOIOS_URLS[network];
   }
 
   private async request(path: string, options?: RequestInit): Promise<unknown> {
@@ -237,11 +237,11 @@ class BlockfrostProvider implements CardanoProvider {
 let _provider: CardanoProvider | null = null;
 
 /** Create or return a cached CardanoProvider. Uses Koios by default. */
-export function getProvider(network: CardanoNetwork, blockfrostProjectId?: string): CardanoProvider {
+export function getProvider(network: CardanoNetwork, blockfrostProjectId?: string, koiosUrl?: string): CardanoProvider {
   if (_provider) return _provider;
   _provider = blockfrostProjectId
     ? new BlockfrostProvider(blockfrostProjectId, network)
-    : new KoiosProvider(network);
+    : new KoiosProvider(network, koiosUrl);
   return _provider;
 }
 
