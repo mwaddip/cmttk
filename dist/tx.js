@@ -237,6 +237,10 @@ export function calculateFee(txSizeBytes, pp, exUnits) {
     }
     return fee;
 }
+/** Compute min lovelace for an output from its serialized CBOR size. */
+function minLovelace(outputCbor, pp) {
+    return BigInt(160 + outputCbor.length) * BigInt(pp.coinsPerUtxoByte);
+}
 // ── CBOR builders ───────────────────────────────────────────────────────────
 /** Sort inputs lexicographically by (txHash, index) — Conway requirement. */
 function sortInputs(utxos) {
@@ -361,12 +365,21 @@ export async function buildAndSubmitTransfer(params) {
     const tokenEntries = Object.entries(assets).filter(([u]) => u !== "lovelace");
     function buildOutputs(fee) {
         const outs = [];
-        const changeLv = inputTotal.lovelace - assets.lovelace - fee;
+        // Recipient output — enforce min-UTxO
+        let recipientLv = assets.lovelace;
+        const recipientOut = hasTokens
+            ? buildOutputCbor(toAddrHex, recipientLv, tokenEntries)
+            : buildOutputCbor(toAddrHex, recipientLv);
+        const minLv = minLovelace(recipientOut, pp);
+        if (recipientLv < minLv)
+            recipientLv = minLv;
+        const changeLv = inputTotal.lovelace - recipientLv - fee;
         // When change is below min UTxO and there are no change tokens, add it to the
         // recipient output. At most ~1 ADA — better than losing it as excess fee.
-        const dustChange = changeLv > 0n && changeLv < 1000000n && changeTokens.length === 0;
-        const recipientLv = dustChange ? assets.lovelace + changeLv : assets.lovelace;
-        // Recipient output
+        const dustChange = changeLv > 0n && changeLv < minLv && changeTokens.length === 0;
+        if (dustChange)
+            recipientLv += changeLv;
+        // Build final recipient output with adjusted lovelace
         if (hasTokens) {
             outs.push(buildOutputCbor(toAddrHex, recipientLv, tokenEntries));
         }
@@ -374,13 +387,14 @@ export async function buildAndSubmitTransfer(params) {
             outs.push(buildOutputCbor(toAddrHex, recipientLv));
         }
         // Change output (only when enough for min UTxO or tokens need returning)
-        if (!dustChange && (changeLv >= 1000000n || changeTokens.length > 0)) {
-            const actualChangeLv = changeLv < 1000000n ? 1000000n : changeLv;
+        if (!dustChange && changeLv > 0n) {
             if (changeTokens.length > 0) {
-                outs.push(buildOutputCbor(fromAddrHex, actualChangeLv, changeTokens));
+                const changeOut = buildOutputCbor(fromAddrHex, changeLv, changeTokens);
+                const changeMin = minLovelace(changeOut, pp);
+                outs.push(buildOutputCbor(fromAddrHex, changeLv < changeMin ? changeMin : changeLv, changeTokens));
             }
-            else {
-                outs.push(buildOutputCbor(fromAddrHex, actualChangeLv));
+            else if (changeLv >= minLv) {
+                outs.push(buildOutputCbor(fromAddrHex, changeLv));
             }
         }
         return outs;
@@ -486,32 +500,48 @@ export async function buildAndSubmitScriptTx(params) {
     // Build outputs CBOR
     function buildAllOutputs(fee) {
         const outs = [];
-        // Explicit outputs
+        // Explicit outputs — enforce min-UTxO
+        let actualOutputLovelace = 0n;
         for (const out of outputs) {
             const addrHex = addressToHex(out.address);
             const hasTokens = Object.keys(out.assets).some(u => u !== "lovelace");
             const tokenEntries = Object.entries(out.assets).filter(([u]) => u !== "lovelace");
+            let lv = out.assets.lovelace;
             if (out.datumCbor) {
                 // Output with inline datum (post-Babbage map format)
-                const addrField = [cborUint(0n), cborBytes(hexToBytes(addrHex))];
-                const valueField = hasTokens
-                    ? [cborUint(1n), cborArray([cborUint(out.assets.lovelace), buildMultiAssetCbor(tokenEntries)])]
-                    : [cborUint(1n), cborUint(out.assets.lovelace)];
-                // Datum option: [1, datum_cbor] where 1 = inline datum (tag 24 for CBOR-in-CBOR)
                 const datumBytes = hexToBytes(out.datumCbor);
                 const datumField = [
                     cborUint(2n),
                     cborArray([cborUint(1n), cborTag(24, cborBytes(datumBytes))]),
                 ];
-                outs.push(cborMap([addrField, valueField, datumField]));
+                // Build once to compute min-UTxO, then rebuild with adjusted lovelace
+                const trial = cborMap([
+                    [cborUint(0n), cborBytes(hexToBytes(addrHex))],
+                    hasTokens
+                        ? [cborUint(1n), cborArray([cborUint(lv), buildMultiAssetCbor(tokenEntries)])]
+                        : [cborUint(1n), cborUint(lv)],
+                    datumField,
+                ]);
+                const minLv = minLovelace(trial, pp);
+                if (lv < minLv)
+                    lv = minLv;
+                const valueField = hasTokens
+                    ? [cborUint(1n), cborArray([cborUint(lv), buildMultiAssetCbor(tokenEntries)])]
+                    : [cborUint(1n), cborUint(lv)];
+                outs.push(cborMap([[cborUint(0n), cborBytes(hexToBytes(addrHex))], valueField, datumField]));
             }
             else {
-                outs.push(buildOutputCbor(addrHex, out.assets.lovelace, hasTokens ? tokenEntries : undefined));
+                const trial = buildOutputCbor(addrHex, lv, hasTokens ? tokenEntries : undefined);
+                const minLv = minLovelace(trial, pp);
+                if (lv < minLv)
+                    lv = minLv;
+                outs.push(buildOutputCbor(addrHex, lv, hasTokens ? tokenEntries : undefined));
             }
+            actualOutputLovelace += lv;
         }
         // Change output (wallet gets back its excess ADA + any tokens)
         const totalInputLv = scriptInputLovelace + walletInputTotal.lovelace;
-        const changeLv = totalInputLv - outputLovelace - fee;
+        const changeLv = totalInputLv - actualOutputLovelace - fee;
         // Collect leftover tokens from wallet inputs not consumed by outputs
         const changeTokens = [];
         const walletTokens = new Map();
@@ -535,9 +565,13 @@ export async function buildAndSubmitScriptTx(params) {
         for (const [unit, qty] of walletTokens) {
             changeTokens.push([unit, qty]);
         }
-        if (changeLv >= 1000000n || changeTokens.length > 0) {
-            const actualChangeLv = changeLv < 1000000n ? 1000000n : changeLv;
-            outs.push(buildOutputCbor(addressToHex(walletAddress), actualChangeLv, changeTokens.length > 0 ? changeTokens : undefined));
+        if (changeLv > 0n || changeTokens.length > 0) {
+            const changeOut = buildOutputCbor(addressToHex(walletAddress), changeLv > 0n ? changeLv : 0n, changeTokens.length > 0 ? changeTokens : undefined);
+            const changeMin = minLovelace(changeOut, pp);
+            if (changeLv >= changeMin || changeTokens.length > 0) {
+                const actualChangeLv = changeLv < changeMin ? changeMin : changeLv;
+                outs.push(buildOutputCbor(addressToHex(walletAddress), actualChangeLv, changeTokens.length > 0 ? changeTokens : undefined));
+            }
         }
         return outs;
     }
