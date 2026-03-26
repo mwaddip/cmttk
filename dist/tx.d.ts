@@ -27,7 +27,19 @@ export interface Assets {
 export declare function addressToHex(addr: string): string;
 /** Parse Koios /address_utxos response into typed Utxo[]. */
 export declare function parseKoiosUtxos(raw: unknown[]): Utxo[];
-/** Simple greedy coin selection. Returns selected UTXOs or throws. */
+/**
+ * CIP-2 Random-Improve coin selection.
+ *
+ * Phase 1 (Random Select): For each required asset, randomly pick UTxOs
+ * until the accumulated value covers the requirement.
+ *
+ * Phase 2 (Improve): For each selection, try to swap the last-picked UTxO
+ * with one from the remaining pool that brings change closer to the output
+ * value (ideal change ≈ output value for UTxO diversity).
+ *
+ * Falls back to Largest-First if Random-Improve can't satisfy requirements
+ * within a bounded number of attempts.
+ */
 export declare function selectUtxos(utxos: Utxo[], required: Assets): {
     selected: Utxo[];
     inputTotal: Assets;

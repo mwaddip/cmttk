@@ -61,48 +61,169 @@ export function parseKoiosUtxos(raw) {
         };
     });
 }
-// ── Coin selection ──────────────────────────────────────────────────────────
-/** Simple greedy coin selection. Returns selected UTXOs or throws. */
-export function selectUtxos(utxos, required) {
+// ── Coin selection (CIP-2 Random-Improve with Largest-First fallback) ───────
+function utxoValue(u, unit) {
+    return unit === "lovelace" ? u.lovelace : (u.tokens[unit] ?? 0n);
+}
+function sumSelected(selected) {
+    const total = { lovelace: 0n };
+    for (const u of selected) {
+        total.lovelace += u.lovelace;
+        for (const [unit, qty] of Object.entries(u.tokens)) {
+            total[unit] = (total[unit] ?? 0n) + qty;
+        }
+    }
+    return total;
+}
+function isSatisfied(total, required) {
+    for (const [unit, qty] of Object.entries(required)) {
+        if (qty <= 0n)
+            continue;
+        const have = unit === "lovelace" ? total.lovelace : (total[unit] ?? 0n);
+        if (have < qty)
+            return false;
+    }
+    return true;
+}
+/** Fisher-Yates shuffle (in-place). */
+function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+/**
+ * Largest-First greedy selection. Used as fallback when Random-Improve
+ * fails to find a valid selection.
+ */
+function largestFirst(utxos, required) {
+    // Sort by total lovelace descending
+    const sorted = [...utxos].sort((a, b) => Number(b.lovelace - a.lovelace));
     const selected = [];
-    const inputTotal = { lovelace: 0n };
-    const remaining = new Map();
+    const total = { lovelace: 0n };
+    for (const u of sorted) {
+        if (isSatisfied(total, required))
+            break;
+        selected.push(u);
+        total.lovelace += u.lovelace;
+        for (const [unit, qty] of Object.entries(u.tokens)) {
+            total[unit] = (total[unit] ?? 0n) + qty;
+        }
+    }
+    if (!isSatisfied(total, required)) {
+        const missing = [];
+        for (const [unit, qty] of Object.entries(required)) {
+            if (qty <= 0n)
+                continue;
+            const have = unit === "lovelace" ? total.lovelace : (total[unit] ?? 0n);
+            if (have < qty)
+                missing.push(`${unit}: need ${qty}, have ${have}`);
+        }
+        throw new Error(`Insufficient funds: ${missing.join(", ")}`);
+    }
+    return selected;
+}
+/**
+ * CIP-2 Random-Improve coin selection.
+ *
+ * Phase 1 (Random Select): For each required asset, randomly pick UTxOs
+ * until the accumulated value covers the requirement.
+ *
+ * Phase 2 (Improve): For each selection, try to swap the last-picked UTxO
+ * with one from the remaining pool that brings change closer to the output
+ * value (ideal change ≈ output value for UTxO diversity).
+ *
+ * Falls back to Largest-First if Random-Improve can't satisfy requirements
+ * within a bounded number of attempts.
+ */
+export function selectUtxos(utxos, required) {
+    // Collect the units we need to satisfy
+    const units = [];
     for (const [unit, qty] of Object.entries(required)) {
         if (qty > 0n)
-            remaining.set(unit, qty);
+            units.push([unit, qty]);
     }
-    for (const utxo of utxos) {
-        if (remaining.size === 0)
-            break;
-        let useful = false;
-        if (remaining.has("lovelace") && utxo.lovelace > 0n)
-            useful = true;
-        for (const unit of Object.keys(utxo.tokens)) {
-            if (remaining.has(unit))
-                useful = true;
-        }
-        if (!useful && remaining.has("lovelace") && utxo.lovelace > 0n)
-            useful = true;
-        if (useful) {
-            selected.push(utxo);
-            inputTotal.lovelace += utxo.lovelace;
-            for (const [unit, qty] of Object.entries(utxo.tokens)) {
-                inputTotal[unit] = (inputTotal[unit] ?? 0n) + qty;
+    if (units.length === 0)
+        return { selected: [], inputTotal: { lovelace: 0n } };
+    // Try Random-Improve up to 3 times, then fall back
+    const maxAttempts = 3;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+            const pool = new Set(utxos);
+            const selectedSet = new Set();
+            // Phase 1: Random Select — per asset
+            for (const [unit, needed] of units) {
+                let accumulated = 0n;
+                // Count what we already have from prior rounds
+                for (const u of selectedSet)
+                    accumulated += utxoValue(u, unit);
+                if (accumulated >= needed)
+                    continue;
+                const candidates = shuffle([...pool].filter(u => utxoValue(u, unit) > 0n));
+                for (const u of candidates) {
+                    if (accumulated >= needed)
+                        break;
+                    selectedSet.add(u);
+                    pool.delete(u);
+                    accumulated += utxoValue(u, unit);
+                }
+                if (accumulated < needed)
+                    throw new Error("insufficient"); // trigger fallback
             }
-            for (const [unit, needed] of remaining) {
-                const have = unit === "lovelace" ? inputTotal.lovelace : (inputTotal[unit] ?? 0n);
-                if (have >= needed)
-                    remaining.delete(unit);
+            // Phase 2: Improve — for each asset, try to swap the last selected UTxO
+            // with a remaining one that brings change closer to the output value
+            const selected = [...selectedSet];
+            for (const [unit, needed] of units) {
+                // Find the last UTxO selected that contributes to this unit
+                let lastIdx = -1;
+                for (let i = selected.length - 1; i >= 0; i--) {
+                    if (utxoValue(selected[i], unit) > 0n) {
+                        lastIdx = i;
+                        break;
+                    }
+                }
+                if (lastIdx < 0)
+                    continue;
+                const total = selected.reduce((s, u) => s + utxoValue(u, unit), 0n);
+                const change = total - needed;
+                const idealChange = needed; // CIP-2: ideal change ≈ output value
+                // Try each remaining UTxO as a swap candidate
+                const last = selected[lastIdx];
+                let bestSwap;
+                let bestDist = change > idealChange ? change - idealChange : idealChange - change;
+                for (const candidate of pool) {
+                    if (utxoValue(candidate, unit) === 0n)
+                        continue;
+                    const newTotal = total - utxoValue(last, unit) + utxoValue(candidate, unit);
+                    if (newTotal < needed)
+                        continue; // swap must still cover requirement
+                    const newChange = newTotal - needed;
+                    const dist = newChange > idealChange ? newChange - idealChange : idealChange - newChange;
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        bestSwap = candidate;
+                    }
+                }
+                if (bestSwap) {
+                    pool.add(last);
+                    pool.delete(bestSwap);
+                    selected[lastIdx] = bestSwap;
+                }
             }
+            // Verify all requirements are met
+            const inputTotal = sumSelected(selected);
+            if (!isSatisfied(inputTotal, required))
+                throw new Error("insufficient");
+            return { selected, inputTotal };
+        }
+        catch {
+            // Random attempt failed — retry or fall back
         }
     }
-    if (remaining.size > 0) {
-        const missing = Array.from(remaining.entries())
-            .map(([u, q]) => `${u}: need ${q}, have ${u === "lovelace" ? inputTotal.lovelace : (inputTotal[u] ?? 0n)}`)
-            .join(", ");
-        throw new Error(`Insufficient funds: ${missing}`);
-    }
-    return { selected, inputTotal };
+    // Fallback: Largest-First
+    const selected = largestFirst(utxos, required);
+    return { selected, inputTotal: sumSelected(selected) };
 }
 // ── Fee calculation ─────────────────────────────────────────────────────────
 /** Calculate the minimum fee for a transaction.
@@ -335,11 +456,12 @@ export async function buildAndSubmitScriptTx(params) {
     if (hasScripts) {
         const adaOnly = walletUtxos
             .filter(u => Object.keys(u.tokens).length === 0)
-            .sort((a, b) => Number(b.lovelace - a.lovelace));
-        if (adaOnly.length === 0) {
+            .sort((a, b) => Number(a.lovelace - b.lovelace)); // ascending — pick smallest sufficient
+        // Find the smallest UTxO that covers collateral; fall back to the largest if none qualifies
+        collateralUtxo = adaOnly.find(u => u.lovelace >= collateralAmount) ?? adaOnly[adaOnly.length - 1];
+        if (!collateralUtxo) {
             throw new Error("No ADA-only UTXOs available for collateral — send ADA to a clean UTXO first");
         }
-        collateralUtxo = adaOnly[0];
         selectionPool = walletUtxos.filter(u => !(u.txHash === collateralUtxo.txHash && u.index === collateralUtxo.index));
         adjustedAdaNeeded = adaNeeded > collateralUtxo.lovelace ? adaNeeded - collateralUtxo.lovelace : 0n;
     }
