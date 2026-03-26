@@ -8,7 +8,8 @@
  */
 
 import { Bip32PrivateKey } from "noble-bip32ed25519";
-import { mnemonicToEntropy, validateMnemonic } from "bip39";
+import { mnemonicToEntropy, validateMnemonic } from "@scure/bip39";
+import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { bech32 } from "bech32";
 import type { CardanoNetwork } from "./types.js";
 
@@ -50,12 +51,12 @@ export async function deriveWallet(
   mnemonic: string,
   network: CardanoNetwork,
 ): Promise<CardanoWallet> {
-  if (!validateMnemonic(mnemonic)) {
+  if (!validateMnemonic(mnemonic, wordlist)) {
     throw new Error("Invalid mnemonic");
   }
 
-  const entropy = mnemonicToEntropy(mnemonic);
-  const rootKey = Bip32PrivateKey.fromEntropy(Buffer.from(entropy, "hex"));
+  const entropy = mnemonicToEntropy(mnemonic, wordlist);
+  const rootKey = Bip32PrivateKey.fromEntropy(Buffer.from(entropy));
 
   // CIP-1852 derivation path: m/1852'/1815'/0'
   // Hardened derivation uses index + 0x80000000

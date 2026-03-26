@@ -223,7 +223,7 @@ Dependencies:
 - [@noble/curves](https://github.com/paulmillr/noble-curves) — Ed25519 elliptic curve operations
 - [@noble/hashes](https://github.com/paulmillr/noble-hashes) — SHA-512, BLAKE2b, HMAC
 - [bech32](https://github.com/bitcoinjs/bech32) — Bech32 address encoding
-- [bip39](https://github.com/bitcoinjs/bip39) — Mnemonic phrase generation/validation
+- [@scure/bip39](https://github.com/paulmillr/scure-bip39) — Mnemonic phrase validation (tree-shakeable, English-only)
 
 ## Tested on-chain
 
