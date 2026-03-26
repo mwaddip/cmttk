@@ -57,7 +57,7 @@ function buildAndSubmitTransfer(params: {
   provider: CardanoProvider;
   fromAddress: string;           // sender bech32 address
   toAddress: string;             // recipient bech32 address
-  assets: Assets;                // { lovelace: bigint, [unit]: bigint }
+  assets: Assets;                // { lovelace: bigint, [unit]: bigint } — lovelace auto-bumped to min-UTxO
   signingKey: Uint8Array;        // 64-byte extended private key
 }): Promise<string>              // returns tx hash
 ```
@@ -105,7 +105,7 @@ interface ScriptInput {
 
 interface TxOutput {
   address: string;                // bech32 destination
-  assets: Assets;
+  assets: Assets;                 // lovelace is auto-bumped to min-UTxO if below protocol minimum
   datumCbor?: string;             // inline datum CBOR hex (from Data.to())
 }
 

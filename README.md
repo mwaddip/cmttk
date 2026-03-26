@@ -50,7 +50,7 @@ const txHash = await buildAndSubmitTransfer({
   provider,
   fromAddress: wallet.address,
   toAddress: "addr_test1qz...",
-  assets: { lovelace: 5_000_000n }, // 5 ADA
+  assets: { lovelace: 5_000_000n }, // 5 ADA (auto-bumped to min-UTxO if below)
   signingKey: wallet.paymentKey,
 });
 
