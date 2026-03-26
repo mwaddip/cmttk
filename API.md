@@ -127,7 +127,7 @@ function parseKoiosUtxos(raw: unknown[]): Utxo[]
 
 ### `selectUtxos(utxos, required)`
 
-Greedy coin selection. Picks UTXOs until all requirements are met.
+CIP-2 Random-Improve coin selection. Randomly selects UTxOs until requirements are met, then improves by swapping to bring change closer to the output value (promoting UTxO diversity). Falls back to Largest-First greedy selection if randomness doesn't produce a solution within 3 attempts.
 
 ```typescript
 function selectUtxos(utxos: Utxo[], required: Assets): {

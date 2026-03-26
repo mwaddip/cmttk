@@ -195,7 +195,7 @@ Replace `Lucid()` / `MeshTxBuilder` initialization with `getProvider()` + `deriv
 
 - **Browser CIP-30 wallet integration.** This is a backend toolkit. For browser-side CIP-30 wallet interaction, use the wallet's `signTx` / `submitTx` APIs directly with the CBOR output from the encoder.
 
-- **Automatic UTXO management.** Coin selection is greedy. It works for typical transactions but doesn't optimize for UTXO fragmentation or do random-improve selection.
+- **Automatic UTXO management.** Coin selection uses CIP-2 Random-Improve (with Largest-First fallback), which promotes healthy UTxO distribution. It does not do multi-output balancing or UTxO consolidation.
 
 These are deliberate scope boundaries, not missing features. The toolkit handles the 90% case — query, build, sign, submit — for dApp backends interacting with Plutus validators. If you need governance transactions or hardware wallet support, use a full-featured library.
 
