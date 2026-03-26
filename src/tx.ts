@@ -450,13 +450,17 @@ export async function buildAndSubmitTransfer(params: {
   function buildOutputs(fee: bigint): Uint8Array[] {
     const outs: Uint8Array[] = [];
 
-    // Recipient output — enforce min-UTxO
+    // Recipient output — enforce min-UTxO (two-pass: lovelace CBOR size may grow after bump)
     let recipientLv = assets.lovelace;
-    const recipientOut = hasTokens
-      ? buildOutputCbor(toAddrHex, recipientLv, tokenEntries)
-      : buildOutputCbor(toAddrHex, recipientLv);
-    const minLv = minLovelace(recipientOut, pp);
-    if (recipientLv < minLv) recipientLv = minLv;
+    const buildRecipient = (lv: bigint) => hasTokens
+      ? buildOutputCbor(toAddrHex, lv, tokenEntries)
+      : buildOutputCbor(toAddrHex, lv);
+    let minLv = minLovelace(buildRecipient(recipientLv), pp);
+    if (recipientLv < minLv) {
+      recipientLv = minLv;
+      minLv = minLovelace(buildRecipient(recipientLv), pp);
+      if (recipientLv < minLv) recipientLv = minLv;
+    }
 
     const changeLv = inputTotal.lovelace - recipientLv - fee;
 
@@ -475,9 +479,12 @@ export async function buildAndSubmitTransfer(params: {
     // Change output (only when enough for min UTxO or tokens need returning)
     if (!dustChange && changeLv > 0n) {
       if (changeTokens.length > 0) {
-        const changeOut = buildOutputCbor(fromAddrHex, changeLv, changeTokens);
-        const changeMin = minLovelace(changeOut, pp);
-        outs.push(buildOutputCbor(fromAddrHex, changeLv < changeMin ? changeMin : changeLv, changeTokens));
+        const buildChange = (v: bigint) => buildOutputCbor(fromAddrHex, v, changeTokens);
+        let changeMin = minLovelace(buildChange(changeLv), pp);
+        let actualChange = changeLv < changeMin ? changeMin : changeLv;
+        changeMin = minLovelace(buildChange(actualChange), pp);
+        if (actualChange < changeMin) actualChange = changeMin;
+        outs.push(buildChange(actualChange));
       } else if (changeLv >= minLv) {
         outs.push(buildOutputCbor(fromAddrHex, changeLv));
       }
@@ -675,25 +682,23 @@ export async function buildAndSubmitScriptTx(params: {
           cborUint(2n),
           cborArray([cborUint(1n), cborTag(24, cborBytes(datumBytes))]),
         ];
-        // Build once to compute min-UTxO, then rebuild with adjusted lovelace
-        const trial = cborMap([
+        // Two-pass min-UTxO: lovelace CBOR size may grow after bump
+        const buildDatumOut = (v: bigint) => cborMap([
           [cborUint(0n), cborBytes(hexToBytes(addrHex))],
           hasTokens
-            ? [cborUint(1n), cborArray([cborUint(lv), buildMultiAssetCbor(tokenEntries)])]
-            : [cborUint(1n), cborUint(lv)],
+            ? [cborUint(1n), cborArray([cborUint(v), buildMultiAssetCbor(tokenEntries)])]
+            : [cborUint(1n), cborUint(v)],
           datumField,
         ]);
-        const minLv = minLovelace(trial, pp);
-        if (lv < minLv) lv = minLv;
-        const valueField: [Uint8Array, Uint8Array] = hasTokens
-          ? [cborUint(1n), cborArray([cborUint(lv), buildMultiAssetCbor(tokenEntries)])]
-          : [cborUint(1n), cborUint(lv)];
-        outs.push(cborMap([[cborUint(0n), cborBytes(hexToBytes(addrHex))], valueField, datumField]));
+        let minLv = minLovelace(buildDatumOut(lv), pp);
+        if (lv < minLv) { lv = minLv; minLv = minLovelace(buildDatumOut(lv), pp); if (lv < minLv) lv = minLv; }
+        outs.push(buildDatumOut(lv));
       } else {
-        const trial = buildOutputCbor(addrHex, lv, hasTokens ? tokenEntries : undefined);
-        const minLv = minLovelace(trial, pp);
-        if (lv < minLv) lv = minLv;
-        outs.push(buildOutputCbor(addrHex, lv, hasTokens ? tokenEntries : undefined));
+        // Two-pass min-UTxO
+        const buildOut = (v: bigint) => buildOutputCbor(addrHex, v, hasTokens ? tokenEntries : undefined);
+        let minLv = minLovelace(buildOut(lv), pp);
+        if (lv < minLv) { lv = minLv; minLv = minLovelace(buildOut(lv), pp); if (lv < minLv) lv = minLv; }
+        outs.push(buildOut(lv));
       }
       actualOutputLovelace += lv;
     }
@@ -724,13 +729,15 @@ export async function buildAndSubmitScriptTx(params: {
     }
 
     if (changeLv > 0n || changeTokens.length > 0) {
-      const changeOut = buildOutputCbor(addressToHex(walletAddress), changeLv > 0n ? changeLv : 0n,
-        changeTokens.length > 0 ? changeTokens : undefined);
-      const changeMin = minLovelace(changeOut, pp);
+      const walletAddrHex = addressToHex(walletAddress);
+      const toks = changeTokens.length > 0 ? changeTokens : undefined;
+      const buildChange = (v: bigint) => buildOutputCbor(walletAddrHex, v, toks);
+      let changeMin = minLovelace(buildChange(changeLv > 0n ? changeLv : 0n), pp);
+      let actualChangeLv = changeLv < changeMin ? changeMin : changeLv;
+      changeMin = minLovelace(buildChange(actualChangeLv), pp);
+      if (actualChangeLv < changeMin) actualChangeLv = changeMin;
       if (changeLv >= changeMin || changeTokens.length > 0) {
-        const actualChangeLv = changeLv < changeMin ? changeMin : changeLv;
-        outs.push(buildOutputCbor(addressToHex(walletAddress), actualChangeLv,
-          changeTokens.length > 0 ? changeTokens : undefined));
+        outs.push(buildChange(actualChangeLv));
       }
     }
 

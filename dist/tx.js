@@ -365,14 +365,18 @@ export async function buildAndSubmitTransfer(params) {
     const tokenEntries = Object.entries(assets).filter(([u]) => u !== "lovelace");
     function buildOutputs(fee) {
         const outs = [];
-        // Recipient output — enforce min-UTxO
+        // Recipient output — enforce min-UTxO (two-pass: lovelace CBOR size may grow after bump)
         let recipientLv = assets.lovelace;
-        const recipientOut = hasTokens
-            ? buildOutputCbor(toAddrHex, recipientLv, tokenEntries)
-            : buildOutputCbor(toAddrHex, recipientLv);
-        const minLv = minLovelace(recipientOut, pp);
-        if (recipientLv < minLv)
+        const buildRecipient = (lv) => hasTokens
+            ? buildOutputCbor(toAddrHex, lv, tokenEntries)
+            : buildOutputCbor(toAddrHex, lv);
+        let minLv = minLovelace(buildRecipient(recipientLv), pp);
+        if (recipientLv < minLv) {
             recipientLv = minLv;
+            minLv = minLovelace(buildRecipient(recipientLv), pp);
+            if (recipientLv < minLv)
+                recipientLv = minLv;
+        }
         const changeLv = inputTotal.lovelace - recipientLv - fee;
         // When change is below min UTxO and there are no change tokens, add it to the
         // recipient output. At most ~1 ADA — better than losing it as excess fee.
@@ -389,9 +393,13 @@ export async function buildAndSubmitTransfer(params) {
         // Change output (only when enough for min UTxO or tokens need returning)
         if (!dustChange && changeLv > 0n) {
             if (changeTokens.length > 0) {
-                const changeOut = buildOutputCbor(fromAddrHex, changeLv, changeTokens);
-                const changeMin = minLovelace(changeOut, pp);
-                outs.push(buildOutputCbor(fromAddrHex, changeLv < changeMin ? changeMin : changeLv, changeTokens));
+                const buildChange = (v) => buildOutputCbor(fromAddrHex, v, changeTokens);
+                let changeMin = minLovelace(buildChange(changeLv), pp);
+                let actualChange = changeLv < changeMin ? changeMin : changeLv;
+                changeMin = minLovelace(buildChange(actualChange), pp);
+                if (actualChange < changeMin)
+                    actualChange = changeMin;
+                outs.push(buildChange(actualChange));
             }
             else if (changeLv >= minLv) {
                 outs.push(buildOutputCbor(fromAddrHex, changeLv));
@@ -514,28 +522,34 @@ export async function buildAndSubmitScriptTx(params) {
                     cborUint(2n),
                     cborArray([cborUint(1n), cborTag(24, cborBytes(datumBytes))]),
                 ];
-                // Build once to compute min-UTxO, then rebuild with adjusted lovelace
-                const trial = cborMap([
+                // Two-pass min-UTxO: lovelace CBOR size may grow after bump
+                const buildDatumOut = (v) => cborMap([
                     [cborUint(0n), cborBytes(hexToBytes(addrHex))],
                     hasTokens
-                        ? [cborUint(1n), cborArray([cborUint(lv), buildMultiAssetCbor(tokenEntries)])]
-                        : [cborUint(1n), cborUint(lv)],
+                        ? [cborUint(1n), cborArray([cborUint(v), buildMultiAssetCbor(tokenEntries)])]
+                        : [cborUint(1n), cborUint(v)],
                     datumField,
                 ]);
-                const minLv = minLovelace(trial, pp);
-                if (lv < minLv)
+                let minLv = minLovelace(buildDatumOut(lv), pp);
+                if (lv < minLv) {
                     lv = minLv;
-                const valueField = hasTokens
-                    ? [cborUint(1n), cborArray([cborUint(lv), buildMultiAssetCbor(tokenEntries)])]
-                    : [cborUint(1n), cborUint(lv)];
-                outs.push(cborMap([[cborUint(0n), cborBytes(hexToBytes(addrHex))], valueField, datumField]));
+                    minLv = minLovelace(buildDatumOut(lv), pp);
+                    if (lv < minLv)
+                        lv = minLv;
+                }
+                outs.push(buildDatumOut(lv));
             }
             else {
-                const trial = buildOutputCbor(addrHex, lv, hasTokens ? tokenEntries : undefined);
-                const minLv = minLovelace(trial, pp);
-                if (lv < minLv)
+                // Two-pass min-UTxO
+                const buildOut = (v) => buildOutputCbor(addrHex, v, hasTokens ? tokenEntries : undefined);
+                let minLv = minLovelace(buildOut(lv), pp);
+                if (lv < minLv) {
                     lv = minLv;
-                outs.push(buildOutputCbor(addrHex, lv, hasTokens ? tokenEntries : undefined));
+                    minLv = minLovelace(buildOut(lv), pp);
+                    if (lv < minLv)
+                        lv = minLv;
+                }
+                outs.push(buildOut(lv));
             }
             actualOutputLovelace += lv;
         }
@@ -566,11 +580,16 @@ export async function buildAndSubmitScriptTx(params) {
             changeTokens.push([unit, qty]);
         }
         if (changeLv > 0n || changeTokens.length > 0) {
-            const changeOut = buildOutputCbor(addressToHex(walletAddress), changeLv > 0n ? changeLv : 0n, changeTokens.length > 0 ? changeTokens : undefined);
-            const changeMin = minLovelace(changeOut, pp);
+            const walletAddrHex = addressToHex(walletAddress);
+            const toks = changeTokens.length > 0 ? changeTokens : undefined;
+            const buildChange = (v) => buildOutputCbor(walletAddrHex, v, toks);
+            let changeMin = minLovelace(buildChange(changeLv > 0n ? changeLv : 0n), pp);
+            let actualChangeLv = changeLv < changeMin ? changeMin : changeLv;
+            changeMin = minLovelace(buildChange(actualChangeLv), pp);
+            if (actualChangeLv < changeMin)
+                actualChangeLv = changeMin;
             if (changeLv >= changeMin || changeTokens.length > 0) {
-                const actualChangeLv = changeLv < changeMin ? changeMin : changeLv;
-                outs.push(buildOutputCbor(addressToHex(walletAddress), actualChangeLv, changeTokens.length > 0 ? changeTokens : undefined));
+                outs.push(buildChange(actualChangeLv));
             }
         }
         return outs;
