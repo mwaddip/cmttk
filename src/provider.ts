@@ -223,7 +223,14 @@ class BlockfrostProvider implements CardanoProvider {
     if (!p) throw new Error("Failed to fetch protocol params from Blockfrost");
     const costModels = p["cost_models"] as Record<string, unknown> | undefined;
     let costModelV3: number[] | undefined;
-    if (costModels?.["PlutusV3"]) costModelV3 = costModels["PlutusV3"] as number[];
+    if (costModels?.["PlutusV3"]) {
+      const raw = costModels["PlutusV3"] as number[] | Record<string, number>;
+      // Blockfrost returns a named dict; Koios returns an array.
+      // Sort keys alphabetically to match the canonical ledger ordering.
+      costModelV3 = Array.isArray(raw)
+        ? raw
+        : Object.keys(raw).sort().map(k => (raw as Record<string, number>)[k]!);
+    }
     return {
       minFeeA: Number(p["min_fee_a"] ?? 44), minFeeB: Number(p["min_fee_b"] ?? 155381),
       coinsPerUtxoByte: Number(p["coins_per_utxo_size"] ?? "4310"), costModelV3,

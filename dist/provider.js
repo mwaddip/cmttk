@@ -186,8 +186,14 @@ class BlockfrostProvider {
             throw new Error("Failed to fetch protocol params from Blockfrost");
         const costModels = p["cost_models"];
         let costModelV3;
-        if (costModels?.["PlutusV3"])
-            costModelV3 = costModels["PlutusV3"];
+        if (costModels?.["PlutusV3"]) {
+            const raw = costModels["PlutusV3"];
+            // Blockfrost returns a named dict; Koios returns an array.
+            // Sort keys alphabetically to match the canonical ledger ordering.
+            costModelV3 = Array.isArray(raw)
+                ? raw
+                : Object.keys(raw).sort().map(k => raw[k]);
+        }
         return {
             minFeeA: Number(p["min_fee_a"] ?? 44), minFeeB: Number(p["min_fee_b"] ?? 155381),
             coinsPerUtxoByte: Number(p["coins_per_utxo_size"] ?? "4310"), costModelV3,
