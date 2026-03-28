@@ -1,6 +1,6 @@
 {
   "name": "cmttk",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Cardano Minimal Transaction Toolkit — pure TypeScript, no WASM",
   "type": "module",
   "main": "./dist/index.js",

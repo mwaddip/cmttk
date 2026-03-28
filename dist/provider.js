@@ -146,7 +146,23 @@ class BlockfrostProvider {
                 break;
             page++;
         }
-        return all;
+        // Normalize Blockfrost format to Koios format so parseKoiosUtxos works on both
+        return all.map((utxo) => {
+            const u = utxo;
+            const amounts = u["amount"];
+            const lovelace = amounts?.find(a => a.unit === "lovelace")?.quantity ?? "0";
+            const assets = amounts?.filter(a => a.unit !== "lovelace").map(a => ({
+                policy_id: a.unit.slice(0, 56),
+                asset_name: a.unit.slice(56),
+                quantity: a.quantity,
+            })) ?? [];
+            return {
+                tx_hash: u["tx_hash"],
+                tx_index: u["output_index"] ?? u["tx_index"],
+                value: lovelace,
+                asset_list: assets,
+            };
+        });
     }
     async fetchTip() {
         const tip = await this.request("/blocks/latest");
