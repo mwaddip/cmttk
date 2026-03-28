@@ -344,6 +344,34 @@ Extract the 28-byte payment key hash from a bech32 address. Returns `null` for s
 function getPaymentKeyHash(addr: string): string | null
 ```
 
+### `buildBaseAddress(paymentKeyHash, stakeKeyHash, network)`
+
+Build a Shelley base address (type 0) from raw 28-byte key hashes. Use when you have raw key material without going through `deriveWallet`.
+
+```typescript
+function buildBaseAddress(paymentKeyHash: string, stakeKeyHash: string, network: CardanoNetwork): string
+```
+
+Both hashes must be 56 hex chars (28 bytes). Returns a bech32 address with prefix `addr` (mainnet) or `addr_test` (testnet/preprod/preview).
+
+### `buildEnterpriseAddress(hash, network, isScript?)`
+
+Build a Shelley enterprise address (no staking component) from a key hash or script hash. For validator script addresses, pass `isScript: true`.
+
+```typescript
+function buildEnterpriseAddress(hash: string, network: CardanoNetwork, isScript?: boolean): string
+```
+
+```typescript
+import { buildEnterpriseAddress } from "cmttk";
+
+// Script address from a validator hash
+const scriptAddr = buildEnterpriseAddress(validatorHash, "preprod", true);
+
+// Key-based enterprise address (no staking)
+const keyAddr = buildEnterpriseAddress(paymentKeyHash, "preprod");
+```
+
 ### `normalizeAddress(addr)`
 
 Lowercase normalize an address string.

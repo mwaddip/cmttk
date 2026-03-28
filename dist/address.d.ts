@@ -1,8 +1,19 @@
 /**
  * Address validation and normalization for Cardano bech32 addresses.
  */
+import type { CardanoNetwork } from "./types.js";
 /** Validate a Cardano bech32 address */
 export declare function isValidAddress(addr: string): boolean;
+/**
+ * Build a Shelley base address (type 0) from payment + staking key hashes.
+ * Use when you have raw 28-byte key hashes and need a bech32 address.
+ */
+export declare function buildBaseAddress(paymentKeyHash: string, stakeKeyHash: string, network: CardanoNetwork): string;
+/**
+ * Build a Shelley enterprise address (no staking component) from a key or script hash.
+ * For validator script addresses, pass isScript=true.
+ */
+export declare function buildEnterpriseAddress(hash: string, network: CardanoNetwork, isScript?: boolean): string;
 /** Validate a policy ID (28 bytes = 56 hex chars) */
 export declare function isValidPolicyId(policyId: string): boolean;
 /** Normalize address to lowercase */

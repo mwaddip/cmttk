@@ -15,6 +15,46 @@ export function isValidAddress(addr) {
         return false;
     }
 }
+// ── Address construction ────────────────────────────────────────────────────
+function validateHash(hash) {
+    if (!/^[0-9a-fA-F]{56}$/.test(hash)) {
+        throw new Error("Invalid hash: expected 56 hex chars (28 bytes), got " + hash.length + " chars");
+    }
+    return Buffer.from(hash, "hex");
+}
+function bech32Prefix(network) {
+    return network === "mainnet" ? "addr" : "addr_test";
+}
+function networkId(network) {
+    return network === "mainnet" ? 1 : 0;
+}
+/**
+ * Build a Shelley base address (type 0) from payment + staking key hashes.
+ * Use when you have raw 28-byte key hashes and need a bech32 address.
+ */
+export function buildBaseAddress(paymentKeyHash, stakeKeyHash, network) {
+    const payment = validateHash(paymentKeyHash);
+    const stake = validateHash(stakeKeyHash);
+    const header = 0x00 | networkId(network); // type 0 = key/key base address
+    const bytes = new Uint8Array(57);
+    bytes[0] = header;
+    bytes.set(payment, 1);
+    bytes.set(stake, 29);
+    return bech32.encode(bech32Prefix(network), bech32.toWords(bytes), 256);
+}
+/**
+ * Build a Shelley enterprise address (no staking component) from a key or script hash.
+ * For validator script addresses, pass isScript=true.
+ */
+export function buildEnterpriseAddress(hash, network, isScript = false) {
+    const hashBytes = validateHash(hash);
+    const typeNibble = isScript ? 0x70 : 0x60; // type 7 = script enterprise, type 6 = key enterprise
+    const header = typeNibble | networkId(network);
+    const bytes = new Uint8Array(29);
+    bytes[0] = header;
+    bytes.set(hashBytes, 1);
+    return bech32.encode(bech32Prefix(network), bech32.toWords(bytes), 256);
+}
 /** Validate a policy ID (28 bytes = 56 hex chars) */
 export function isValidPolicyId(policyId) {
     return /^[0-9a-fA-F]{56}$/.test(policyId);

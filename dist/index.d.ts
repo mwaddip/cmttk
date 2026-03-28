@@ -16,7 +16,7 @@ export { getProvider, resetProvider } from "./provider.js";
 export type { CardanoProvider, ProtocolParams } from "./provider.js";
 export { deriveWallet } from "./wallet.js";
 export type { CardanoWallet } from "./wallet.js";
-export { isValidAddress, isValidPolicyId, normalizeAddress, getPaymentKeyHash } from "./address.js";
+export { isValidAddress, isValidPolicyId, normalizeAddress, getPaymentKeyHash, buildBaseAddress, buildEnterpriseAddress } from "./address.js";
 export { posixToSlot, slotToPosix } from "./time.js";
 export type { CardanoNetwork, AssetId } from "./types.js";
 //# sourceMappingURL=index.d.ts.map

@@ -47,7 +47,7 @@ export { deriveWallet } from "./wallet.js";
 export type { CardanoWallet } from "./wallet.js";
 
 // Address utilities
-export { isValidAddress, isValidPolicyId, normalizeAddress, getPaymentKeyHash } from "./address.js";
+export { isValidAddress, isValidPolicyId, normalizeAddress, getPaymentKeyHash, buildBaseAddress, buildEnterpriseAddress } from "./address.js";
 
 // Slot ↔ POSIX time conversion
 export { posixToSlot, slotToPosix } from "./time.js";
