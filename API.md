@@ -101,6 +101,7 @@ interface ScriptInput {
   utxo: Utxo;
   address: string;                // bech32 address where the UTXO sits
   redeemerCbor: string;           // Plutus Data CBOR hex (from Data.to())
+  exUnits?: { mem: bigint; steps: bigint }; // optional per-redeemer budget (default: max-per-tx / redeemer-count)
 }
 
 interface TxOutput {
@@ -114,6 +115,7 @@ interface MintEntry {
   assets: Record<string, bigint>; // assetNameHex → quantity (negative to burn)
   redeemerCbor: string;           // Plutus Data CBOR hex
   scriptCbor: string;             // compiledCode hex from plutus.json
+  exUnits?: { mem: bigint; steps: bigint }; // optional per-redeemer budget (default: max-per-tx / redeemer-count)
 }
 ```
 

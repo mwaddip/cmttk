@@ -600,24 +600,32 @@ export async function buildAndSubmitScriptTx(params) {
     }
     // Build redeemers: CBOR array of [tag, index, data, ex_units]
     // tag 0 = spend, tag 1 = mint. data is raw Plutus Data CBOR (not wrapped in bytes).
-    // Default ex_units are generous — Koios/ogmios can evaluate exact units later.
-    const EX_MEM = 14000000n;
-    const EX_STEPS = 10000000000n;
+    // Default ex-units: divide max per-tx budget by redeemer count.
+    // Cardano preprod/mainnet limits: 16.5M mem, 10B steps per tx.
+    const MAX_TX_MEM = 16500000n;
+    const MAX_TX_STEPS = 10000000000n;
+    const numRedeemers = scriptInputs.length + (mints?.length ?? 0);
+    const defaultMem = numRedeemers > 0 ? MAX_TX_MEM / BigInt(numRedeemers) : MAX_TX_MEM;
+    const defaultSteps = numRedeemers > 0 ? MAX_TX_STEPS / BigInt(numRedeemers) : MAX_TX_STEPS;
     // Conway redeemers: map of [tag, index] → [data, ex_units]
     function buildRedeemers() {
         const mapEntries = [];
         for (const si of scriptInputs) {
             const idx = scriptInputIndex(si.utxo);
+            const mem = si.exUnits?.mem ?? defaultMem;
+            const steps = si.exUnits?.steps ?? defaultSteps;
             const key = cborArray([cborUint(0n), cborUint(BigInt(idx))]); // [spend, index]
-            const val = cborArray([hexToBytes(si.redeemerCbor), cborArray([cborUint(EX_MEM), cborUint(EX_STEPS)])]);
+            const val = cborArray([hexToBytes(si.redeemerCbor), cborArray([cborUint(mem), cborUint(steps)])]);
             mapEntries.push([key, val]);
         }
         if (mints) {
             const sortedPolicies = mints.map(m => m.policyId).sort();
             for (const m of mints) {
+                const mem = m.exUnits?.mem ?? defaultMem;
+                const steps = m.exUnits?.steps ?? defaultSteps;
                 const idx = sortedPolicies.indexOf(m.policyId);
                 const key = cborArray([cborUint(1n), cborUint(BigInt(idx))]); // [mint, index]
-                const val = cborArray([hexToBytes(m.redeemerCbor), cborArray([cborUint(EX_MEM), cborUint(EX_STEPS)])]);
+                const val = cborArray([hexToBytes(m.redeemerCbor), cborArray([cborUint(mem), cborUint(steps)])]);
                 mapEntries.push([key, val]);
             }
         }
@@ -796,10 +804,17 @@ export async function buildAndSubmitScriptTx(params) {
         return cborMap(witnessFields);
     }
     // Total execution units across all redeemers (for fee calculation)
-    const numRedeemers = scriptInputs.length + (mints?.length ?? 0);
-    const totalExUnits = numRedeemers > 0
-        ? { mem: EX_MEM * BigInt(numRedeemers), steps: EX_STEPS * BigInt(numRedeemers) }
-        : undefined;
+    let totalMem = 0n;
+    let totalSteps = 0n;
+    for (const si of scriptInputs) {
+        totalMem += si.exUnits?.mem ?? defaultMem;
+        totalSteps += si.exUnits?.steps ?? defaultSteps;
+    }
+    for (const m of mints ?? []) {
+        totalMem += m.exUnits?.mem ?? defaultMem;
+        totalSteps += m.exUnits?.steps ?? defaultSteps;
+    }
+    const totalExUnits = numRedeemers > 0 ? { mem: totalMem, steps: totalSteps } : undefined;
     // 4. Iterative fee calculation — rebuild until fee stabilizes
     let currentFee = maxFee;
     for (let i = 0; i < 5; i++) {

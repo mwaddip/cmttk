@@ -68,6 +68,11 @@ export interface ScriptInput {
     address: string;
     /** Redeemer CBOR hex (from Data.to()) */
     redeemerCbor: string;
+    /** Optional execution unit budget. If omitted, uses max-per-tx / redeemer-count. */
+    exUnits?: {
+        mem: bigint;
+        steps: bigint;
+    };
 }
 /** An output with an optional inline datum. */
 export interface TxOutput {
@@ -83,6 +88,11 @@ export interface MintEntry {
     redeemerCbor: string;
     /** PlutusV3 script CBOR hex (from plutus.json compiledCode) */
     scriptCbor: string;
+    /** Optional execution unit budget. If omitted, uses max-per-tx / redeemer-count. */
+    exUnits?: {
+        mem: bigint;
+        steps: bigint;
+    };
 }
 /**
  * Build, sign, and submit a transaction with script inputs, datums, minting.
