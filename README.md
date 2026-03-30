@@ -28,12 +28,12 @@ Chain queries go through Koios (free, no API key) or Blockfrost (optional, with 
 ## Installation
 
 ```bash
-npm install github:mwaddip/cmttk#v0.2.1
+npm install github:mwaddip/cmttk#v1.0.0
 ```
 
 Or add to `package.json`:
 ```json
-"cmttk": "github:mwaddip/cmttk#v0.2.1"
+"cmttk": "github:mwaddip/cmttk#v1.0.0"
 ```
 
 ## Quick start
