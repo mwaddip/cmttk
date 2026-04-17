@@ -18,7 +18,8 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "test": "tsx --test tests/*.test.ts",
+    "prepublishOnly": "npm test && npm run build"
   },
   "dependencies": {
     "@noble/curves": "^1.8.0",
@@ -32,6 +33,7 @@
     "@harmoniclabs/plutus-data": "^2.0.1",
     "@harmoniclabs/uplc": "^2.0.6",
     "@types/node": "latest",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "engines": {
