@@ -1,5 +1,5 @@
 import { test, describe } from "node:test";
-import { strictEqual, deepStrictEqual } from "node:assert/strict";
+import { strictEqual } from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { Constr, Data, fromText, applyParamsToScript } from "../src/data.js";
 
@@ -87,6 +87,10 @@ describe("Data.from — round-trip", () => {
     const roundTrip = Data.from(Data.to(orig));
     if (!Array.isArray(roundTrip)) throw new Error("expected array");
     strictEqual(roundTrip.length, 2);
+    if (!(roundTrip[0] instanceof Constr)) throw new Error("element 0 not Constr");
+    if (!(roundTrip[1] instanceof Constr)) throw new Error("element 1 not Constr");
+    strictEqual((roundTrip[0] as Constr).index, 0);
+    strictEqual((roundTrip[1] as Constr).index, 1);
   });
 });
 
