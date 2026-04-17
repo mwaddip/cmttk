@@ -61,7 +61,7 @@ describe("getPaymentKeyHash", () => {
   });
 });
 
-describe("buildBaseAddress → addressToHex round-trip", () => {
+describe("buildBaseAddress → getPaymentKeyHash round-trip", () => {
   test("building a base address from known hashes produces a valid bech32", () => {
     const paymentKeyHash = "16f75d0984ea5e4a184300452830dc8d7e263d052c33d8acbb9e7d6b";
     const stakeKeyHash   = "ab3333affc55fffff3ea9d2e18af6a4a8fe44c8da4b3e4534f9c6baf";
@@ -99,7 +99,9 @@ describe("addressToHex", () => {
     const hex = addressToHex(DEPLOYER_PREPROD);
     // Preprod base address = 57 bytes (1 header + 28 payment hash + 28 stake hash)
     strictEqual(hex.length, 114); // 57 bytes * 2 hex chars
-    // First byte's top nibble is 0 (type 0 = base, key-key) on preprod (net id 0)
-    strictEqual(hex[0], "0");
+    // Header byte 0x00: high nibble = address type (0 = base key-key), low
+    // nibble = network id. Preprod net-id = 0.
+    strictEqual(hex[0], "0"); // type nibble: base address (key-key)
+    strictEqual(hex[1], "0"); // net-id nibble: preprod
   });
 });
