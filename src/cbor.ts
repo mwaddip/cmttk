@@ -216,3 +216,54 @@ export function decodeCbor(bytes: Uint8Array, pos: number): CborDecoded {
       throw new Error("CBOR: unsupported major type " + major);
   }
 }
+
+/**
+ * Parse a CBOR map at `pos` into [decoded key, raw value bytes] pairs.
+ * Retains the value's original CBOR bytes so the map can be re-encoded
+ * without round-tripping the value through the decoder.
+ */
+export function parseCborMap(
+  bytes: Uint8Array,
+  pos: number = 0,
+): { entries: Array<{ key: CborValue; rawValue: Uint8Array }>; endOffset: number } {
+  if (pos >= bytes.length) throw new Error("parseCborMap: unexpected end");
+  const initial = bytes[pos]!;
+  const major = initial >> 5;
+  if (major !== 5) throw new Error("parseCborMap: not a CBOR map (major " + major + ")");
+  const additional = initial & 0x1f;
+  pos++;
+
+  let count = -1;
+  if (additional < 24) count = additional;
+  else if (additional === 24) { count = bytes[pos]!; pos += 1; }
+  else if (additional === 25) { count = (bytes[pos]! << 8) | bytes[pos + 1]!; pos += 2; }
+  else if (additional === 26) {
+    count = ((bytes[pos]! << 24) | (bytes[pos + 1]! << 16) | (bytes[pos + 2]! << 8) | bytes[pos + 3]!) >>> 0;
+    pos += 4;
+  } else if (additional === 31) {
+    count = -1; // indefinite
+  } else {
+    throw new Error("parseCborMap: unsupported map header additional " + additional);
+  }
+
+  const entries: Array<{ key: CborValue; rawValue: Uint8Array }> = [];
+  if (count < 0) {
+    while (bytes[pos] !== 0xff) {
+      const k = decodeCbor(bytes, pos);
+      const valStart = k.offset;
+      const v = decodeCbor(bytes, valStart);
+      entries.push({ key: k.value, rawValue: bytes.slice(valStart, v.offset) });
+      pos = v.offset;
+    }
+    pos++; // skip 0xff
+  } else {
+    for (let i = 0; i < count; i++) {
+      const k = decodeCbor(bytes, pos);
+      const valStart = k.offset;
+      const v = decodeCbor(bytes, valStart);
+      entries.push({ key: k.value, rawValue: bytes.slice(valStart, v.offset) });
+      pos = v.offset;
+    }
+  }
+  return { entries, endOffset: pos };
+}

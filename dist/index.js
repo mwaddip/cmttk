@@ -7,11 +7,11 @@
  * Dependencies: noble-bip32ed25519, @noble/curves, @noble/hashes, bech32, bip39
  */
 // CBOR encoder/decoder
-export { hexToBytes, bytesToHex, concatBytes, cborHeader, cborUint, cborBytes, cborArray, cborMap, cborTag, decodeCbor, } from "./cbor.js";
+export { hexToBytes, bytesToHex, concatBytes, cborHeader, cborUint, cborBytes, cborArray, cborMap, cborTag, decodeCbor, parseCborMap, } from "./cbor.js";
 // Plutus Data codec
 export { Constr, Data, fromText, applyParamsToScript } from "./data.js";
 // Transaction builder
-export { parseKoiosUtxos, selectUtxos, calculateFee, addressToHex, buildOutputCbor, buildAndSubmitTransfer, buildAndSubmitScriptTx, } from "./tx.js";
+export { parseKoiosUtxos, parseCip30Utxos, selectUtxos, calculateFee, addressToHex, buildOutputCbor, buildAndSubmitTransfer, buildAndSubmitScriptTx, buildUnsignedScriptTx, mergeCip30Witness, } from "./tx.js";
 // Chain providers (Koios + Blockfrost)
 export { getProvider, resetProvider } from "./provider.js";
 // Wallet / key derivation

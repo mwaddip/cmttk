@@ -127,6 +127,59 @@ Parse the raw JSON response from Koios `/address_utxos` into typed `Utxo[]`.
 function parseKoiosUtxos(raw: unknown[]): Utxo[]
 ```
 
+### `parseCip30Utxos(cborHexArray)`
+
+Parse the CBOR hex strings returned by CIP-30 `api.getUtxos()` or `api.getCollateral()` into typed `Utxo[]`. Each entry encodes a `[input, output]` pair; both pre-Babbage array outputs and post-Babbage map outputs are accepted.
+
+```typescript
+function parseCip30Utxos(cborHexArray: string[]): Utxo[]
+```
+
+### `buildUnsignedScriptTx(params)`
+
+Build a script transaction ready for CIP-30 wallet signing. Mirrors `buildAndSubmitScriptTx` but takes wallet UTxOs and collateral UTxOs as pre-parsed parameters (CIP-30 wallets expose `api.getUtxos()` and `api.getCollateral()` explicitly) and returns the unsigned body plus a partial witness set instead of signing and submitting.
+
+```typescript
+function buildUnsignedScriptTx(params: {
+  provider: CardanoProvider;
+  walletAddress: string;
+  walletUtxos: Utxo[];            // from parseCip30Utxos(api.getUtxos())
+  collateralUtxos: Utxo[];        // from parseCip30Utxos(api.getCollateral())
+  scriptInputs: ScriptInput[];
+  outputs: TxOutput[];
+  mints?: MintEntry[];
+  spendingScriptCbor?: string;
+  validFrom?: number;
+  validTo?: number;
+  network?: CardanoNetwork;
+  requiredSigners?: string[];
+}): Promise<UnsignedScriptTx>
+```
+
+```typescript
+interface UnsignedScriptTx {
+  txBodyCbor: Uint8Array;         // pass to api.signTx(bytesToHex(txBodyCbor), true)
+  witnessSet: Uint8Array;         // partial witness set: redeemers + scripts, no vkeys
+  redeemersCbor: Uint8Array;
+  plutusV3Scripts: Uint8Array;
+  scriptDataHash: Uint8Array;     // already embedded in txBodyCbor
+  fee: bigint;
+}
+```
+
+### `mergeCip30Witness(unsigned, walletWitnessCbor)`
+
+Merge the CBOR witness set returned by CIP-30 `api.signTx(cbor, partial=true)` into the partial witness set from `buildUnsignedScriptTx`, producing a fully-signed transaction hex string ready for `provider.submitTx`.
+
+```typescript
+function mergeCip30Witness(
+  unsigned: UnsignedScriptTx,
+  walletWitnessCbor: string,
+): string
+```
+
+The wallet typically returns a witness set containing only field 0 (vkey_witnesses) and sometimes field 1 (native_scripts) or field 4 (bootstrap_witness). None collide with the partial set's field 5 (redeemers) or field 7 (plutus_v3_scripts); on any collision the wallet's value wins.
+
 ### `selectUtxos(utxos, required)`
 
 CIP-2 Random-Improve coin selection. Randomly selects UTxOs until requirements are met, then improves by swapping to bring change closer to the output value (promoting UTxO diversity). Falls back to Largest-First greedy selection if randomness doesn't produce a solution within 3 attempts.
@@ -441,6 +494,17 @@ type CborValue =
   | bigint | boolean | null | undefined | string | number
   | Uint8Array | CborValue[] | Map<CborValue, CborValue>;
 ```
+
+### Map entry parser
+
+```typescript
+function parseCborMap(bytes: Uint8Array, pos?: number): {
+  entries: Array<{ key: CborValue; rawValue: Uint8Array }>;
+  endOffset: number;
+}
+```
+
+Parse a CBOR map, returning each entry's decoded key alongside the value's original CBOR bytes. Lets you re-emit or merge maps without round-tripping the values through the decoder. Used internally by `mergeCip30Witness`.
 
 ### Byte utilities
 

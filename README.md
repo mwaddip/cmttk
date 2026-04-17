@@ -124,6 +124,45 @@ const txHash = await buildAndSubmitScriptTx({
 });
 ```
 
+### Browser / CIP-30 wallet
+
+For browser dApps where a CIP-30 wallet (Eternl, Nami, Lace, …) holds the signing key, cmttk builds the unsigned transaction and merges the wallet's witness back in. The wallet-facing CIP-30 calls (`api.enable()`, `api.signTx`, `api.getUtxos`, `api.getCollateral`) stay in consumer code.
+
+```typescript
+import {
+  getProvider,
+  parseCip30Utxos,
+  buildUnsignedScriptTx,
+  mergeCip30Witness,
+  bytesToHex,
+  Constr, Data,
+} from "cmttk";
+
+const api = await window.cardano.eternl.enable();
+const provider = getProvider("preprod");
+
+const walletUtxos     = parseCip30Utxos(await api.getUtxos());
+const collateralUtxos = parseCip30Utxos(await api.getCollateral());
+
+const unsigned = await buildUnsignedScriptTx({
+  provider,
+  walletAddress,
+  walletUtxos,
+  collateralUtxos,
+  scriptInputs: [],
+  outputs: [{ address: scriptAddr, assets: { lovelace: 2_000_000n }, datumCbor }],
+  mints: [{ policyId, assets: { [assetName]: 1n }, redeemerCbor, scriptCbor }],
+  validFrom: Date.now() - 60_000,
+  validTo: Date.now() + 15 * 60_000,
+  network: "preprod",
+  requiredSigners: [keyHash],
+});
+
+const walletWitnessHex = await api.signTx(bytesToHex(unsigned.txBodyCbor), true);
+const signedTxHex      = mergeCip30Witness(unsigned, walletWitnessHex);
+const txHash           = await provider.submitTx(signedTxHex);
+```
+
 ### Apply parameters to Aiken validators
 
 ```typescript
@@ -187,8 +226,6 @@ Replace `Lucid()` / `MeshTxBuilder` initialization with `getProvider()` + `deriv
 - **Stake pool operations.** Pool registration, delegation, and reward withdrawal transactions are not built.
 
 - **Datum witness sets.** Only inline datums (post-Babbage) are supported. Legacy datum-hash-based outputs are not.
-
-- **Browser CIP-30 wallet integration.** This is a backend toolkit. For browser-side CIP-30 wallet interaction, use the wallet's `signTx` / `submitTx` APIs directly with the CBOR output from the encoder.
 
 - **Automatic UTXO management.** Coin selection uses CIP-2 Random-Improve (with Largest-First fallback), which promotes healthy UTxO distribution. It does not do multi-output balancing or UTxO consolidation.
 

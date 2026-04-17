@@ -8,6 +8,7 @@
  */
 
 import type { CardanoNetwork } from "./types.js";
+import { hexToBytes } from "./cbor.js";
 
 // ── Provider interface ──────────────────────────────────────────────────────
 
@@ -101,7 +102,7 @@ class KoiosProvider implements CardanoProvider {
   }
 
   async submitTx(txCbor: string): Promise<string> {
-    const cborBytes = Buffer.from(txCbor, "hex");
+    const cborBytes = hexToBytes(txCbor);
     const res = await fetch(`${this.baseUrl}/submittx`, { method: "POST", headers: { "Content-Type": "application/cbor" }, body: cborBytes });
     if (!res.ok) throw new Error(`Koios submit failed ${res.status}: ${await res.text()}`);
     return (await res.text()).replace(/"/g, "").trim();
@@ -208,7 +209,7 @@ class BlockfrostProvider implements CardanoProvider {
   async submitTx(txCbor: string): Promise<string> {
     const res = await fetch(`${this.baseUrl}/tx/submit`, {
       method: "POST", headers: { "project_id": this.projectId, "Content-Type": "application/cbor" },
-      body: Buffer.from(txCbor, "hex"),
+      body: hexToBytes(txCbor),
     });
     if (!res.ok) throw new Error(`Blockfrost submit ${res.status}: ${await res.text()}`);
     return (await res.text()).replace(/"/g, "").trim();

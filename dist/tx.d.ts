@@ -94,11 +94,26 @@ export interface MintEntry {
         steps: bigint;
     };
 }
+/** Pieces of an unsigned script tx, ready for CIP-30 `signTx` + merge + submit. */
+export interface UnsignedScriptTx {
+    /** Serialised tx body — pass this to CIP-30 `wallet.signTx(hex, true)`. */
+    txBodyCbor: Uint8Array;
+    /** Partial witness set: redeemers (field 5) + plutus scripts (field 7). No vkeys. */
+    witnessSet: Uint8Array;
+    /** Redeemer map CBOR alone (for merging or display). */
+    redeemersCbor: Uint8Array;
+    /** PlutusV3 scripts array CBOR (for merging or display). */
+    plutusV3Scripts: Uint8Array;
+    /** Computed script_data_hash, already embedded in txBodyCbor. */
+    scriptDataHash: Uint8Array;
+    /** Final fee used in the body. */
+    fee: bigint;
+}
 /**
  * Build, sign, and submit a transaction with script inputs, datums, minting.
  *
  * Handles: script spending, redeemers, inline datums, minting/burning,
- * validity ranges, required signers, two-pass fee calculation.
+ * validity ranges, required signers, iterative fee calculation.
  */
 export declare function buildAndSubmitScriptTx(params: {
     provider: CardanoProvider;
@@ -122,4 +137,52 @@ export declare function buildAndSubmitScriptTx(params: {
     /** 64-byte signing key (kL + kR) */
     signingKey: Uint8Array;
 }): Promise<string>;
+/**
+ * Build a script transaction ready for CIP-30 wallet signing.
+ *
+ * Mirrors `buildAndSubmitScriptTx` but:
+ *   1. takes `walletUtxos` as a pre-parsed parameter (wallet already has them via `api.getUtxos()`);
+ *   2. takes `collateralUtxos` explicitly (CIP-30 exposes `api.getCollateral()`);
+ *   3. does not sign or submit — returns the body and partial witness set
+ *      (redeemers + scripts, no vkeys) for the wallet to co-sign.
+ *
+ * Flow: consumer calls this, then `api.signTx(bytesToHex(txBodyCbor), true)`,
+ * then `mergeCip30Witness(unsigned, walletWitnessHex)`, then `submitTx`.
+ */
+export declare function buildUnsignedScriptTx(params: {
+    provider: CardanoProvider;
+    walletAddress: string;
+    /** Pre-parsed UTxOs from CIP-30 `api.getUtxos()` via `parseCip30Utxos()`. */
+    walletUtxos: Utxo[];
+    /** Pre-parsed collateral UTxOs from CIP-30 `api.getCollateral()` via `parseCip30Utxos()`. */
+    collateralUtxos: Utxo[];
+    scriptInputs: ScriptInput[];
+    outputs: TxOutput[];
+    mints?: MintEntry[];
+    spendingScriptCbor?: string;
+    validFrom?: number;
+    validTo?: number;
+    network?: import("./types.js").CardanoNetwork;
+    requiredSigners?: string[];
+}): Promise<UnsignedScriptTx>;
+/**
+ * Parse a CIP-30 `api.getUtxos()` / `api.getCollateral()` response into
+ * typed `Utxo[]`. Each entry is CBOR hex encoding `[input, output]`.
+ *
+ * Supports both post-Babbage map outputs (`{0: address, 1: value, ...}`)
+ * and pre-Babbage array outputs (`[address, value, ?datum_hash]`). Value
+ * may be a bare uint (ADA-only) or `[lovelace, multiasset]`.
+ */
+export declare function parseCip30Utxos(cborHexArray: string[]): Utxo[];
+/**
+ * Merge the witness set returned by CIP-30 `api.signTx(cbor, partial=true)`
+ * into the partial witness set from `buildUnsignedScriptTx`, producing a
+ * fully-signed transaction hex string ready for `provider.submitTx`.
+ *
+ * Wallet entries take precedence on key collision; in practice wallets add
+ * field 0 (vkey_witnesses), sometimes field 1 (native_scripts) or field 4
+ * (bootstrap_witness), none of which collide with the partial's field 5
+ * (redeemers) or field 7 (plutus_v3_scripts).
+ */
+export declare function mergeCip30Witness(unsigned: UnsignedScriptTx, walletWitnessCbor: string): string;
 //# sourceMappingURL=tx.d.ts.map

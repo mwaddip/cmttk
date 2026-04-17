@@ -24,4 +24,16 @@ export interface CborDecoded {
 }
 /** Decode a single CBOR item starting at `pos`. */
 export declare function decodeCbor(bytes: Uint8Array, pos: number): CborDecoded;
+/**
+ * Parse a CBOR map at `pos` into [decoded key, raw value bytes] pairs.
+ * Retains the value's original CBOR bytes so the map can be re-encoded
+ * without round-tripping the value through the decoder.
+ */
+export declare function parseCborMap(bytes: Uint8Array, pos?: number): {
+    entries: Array<{
+        key: CborValue;
+        rawValue: Uint8Array;
+    }>;
+    endOffset: number;
+};
 //# sourceMappingURL=cbor.d.ts.map

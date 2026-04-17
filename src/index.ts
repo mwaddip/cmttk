@@ -19,6 +19,7 @@ export {
   cborMap,
   cborTag,
   decodeCbor,
+  parseCborMap,
 } from "./cbor.js";
 export type { CborValue, CborDecoded } from "./cbor.js";
 
@@ -29,14 +30,17 @@ export type { PlutusField } from "./data.js";
 // Transaction builder
 export {
   parseKoiosUtxos,
+  parseCip30Utxos,
   selectUtxos,
   calculateFee,
   addressToHex,
   buildOutputCbor,
   buildAndSubmitTransfer,
   buildAndSubmitScriptTx,
+  buildUnsignedScriptTx,
+  mergeCip30Witness,
 } from "./tx.js";
-export type { Utxo, Assets, ScriptInput, TxOutput, MintEntry } from "./tx.js";
+export type { Utxo, Assets, ScriptInput, TxOutput, MintEntry, UnsignedScriptTx } from "./tx.js";
 
 // Chain providers (Koios + Blockfrost)
 export { getProvider, resetProvider } from "./provider.js";

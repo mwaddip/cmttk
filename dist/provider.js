@@ -6,6 +6,7 @@
  *
  * Both providers use native fetch() — no external SDK dependencies.
  */
+import { hexToBytes } from "./cbor.js";
 // ── Koios provider ──────────────────────────────────────────────────────────
 const KOIOS_URLS = {
     mainnet: "https://api.koios.rest/api/v1",
@@ -70,7 +71,7 @@ class KoiosProvider {
         return { slot: Number(tip["abs_slot"] ?? 0), block: Number(tip["block_no"] ?? 0), time: Number(tip["block_time"] ?? 0) };
     }
     async submitTx(txCbor) {
-        const cborBytes = Buffer.from(txCbor, "hex");
+        const cborBytes = hexToBytes(txCbor);
         const res = await fetch(`${this.baseUrl}/submittx`, { method: "POST", headers: { "Content-Type": "application/cbor" }, body: cborBytes });
         if (!res.ok)
             throw new Error(`Koios submit failed ${res.status}: ${await res.text()}`);
@@ -173,7 +174,7 @@ class BlockfrostProvider {
     async submitTx(txCbor) {
         const res = await fetch(`${this.baseUrl}/tx/submit`, {
             method: "POST", headers: { "project_id": this.projectId, "Content-Type": "application/cbor" },
-            body: Buffer.from(txCbor, "hex"),
+            body: hexToBytes(txCbor),
         });
         if (!res.ok)
             throw new Error(`Blockfrost submit ${res.status}: ${await res.text()}`);

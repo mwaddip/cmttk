@@ -6,12 +6,12 @@
  *
  * Dependencies: noble-bip32ed25519, @noble/curves, @noble/hashes, bech32, bip39
  */
-export { hexToBytes, bytesToHex, concatBytes, cborHeader, cborUint, cborBytes, cborArray, cborMap, cborTag, decodeCbor, } from "./cbor.js";
+export { hexToBytes, bytesToHex, concatBytes, cborHeader, cborUint, cborBytes, cborArray, cborMap, cborTag, decodeCbor, parseCborMap, } from "./cbor.js";
 export type { CborValue, CborDecoded } from "./cbor.js";
 export { Constr, Data, fromText, applyParamsToScript } from "./data.js";
 export type { PlutusField } from "./data.js";
-export { parseKoiosUtxos, selectUtxos, calculateFee, addressToHex, buildOutputCbor, buildAndSubmitTransfer, buildAndSubmitScriptTx, } from "./tx.js";
-export type { Utxo, Assets, ScriptInput, TxOutput, MintEntry } from "./tx.js";
+export { parseKoiosUtxos, parseCip30Utxos, selectUtxos, calculateFee, addressToHex, buildOutputCbor, buildAndSubmitTransfer, buildAndSubmitScriptTx, buildUnsignedScriptTx, mergeCip30Witness, } from "./tx.js";
+export type { Utxo, Assets, ScriptInput, TxOutput, MintEntry, UnsignedScriptTx } from "./tx.js";
 export { getProvider, resetProvider } from "./provider.js";
 export type { CardanoProvider, ProtocolParams } from "./provider.js";
 export { deriveWallet } from "./wallet.js";
