@@ -276,6 +276,16 @@ This is a small, focused library. If it solves your problem, use it. If it's mis
 
 Issues and pull requests: [github.com/mwaddip/cmttk](https://github.com/mwaddip/cmttk)
 
+## Testing
+
+The suite runs via Node's built-in test runner + `tsx`:
+
+```bash
+npm test
+```
+
+Tests live in `tests/` and are excluded from the npm tarball. Vectors are ported from upstream references (RFC 8949 for CBOR, noble-bip32ed25519 for BIP32-Ed25519 derivation, CIP-5 for address examples). The tx builder has encoder unit tests plus a self-regression integration test pinned with `Math.random = () => 0`.
+
 ## License
 
 MIT
