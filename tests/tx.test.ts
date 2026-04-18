@@ -1,13 +1,11 @@
 import { test, describe } from "node:test";
 import { strictEqual, deepStrictEqual } from "node:assert/strict";
 import {
-  bytesToHex,
   hexToBytes,
   cborUint,
   cborBytes,
   cborArray,
   cborMap,
-  cborTag,
 } from "../src/cbor.js";
 import {
   buildOutputCbor,
