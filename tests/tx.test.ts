@@ -8,6 +8,7 @@ import {
   cborMap,
 } from "../src/cbor.js";
 import {
+  buildAndSubmitTransfer,
   buildOutputCbor,
   addressToHex,
   calculateFee,
@@ -15,6 +16,10 @@ import {
   selectUtxos,
   type Utxo,
 } from "../src/tx.js";
+import { resetProvider } from "../src/provider.js";
+import { deriveWallet } from "../src/wallet.js";
+import { stubProvider } from "./helpers/stub-provider.js";
+import { TEST_MNEMONIC } from "./helpers/mnemonic.js";
 
 const DEPLOYER = "addr_test1qqkmm4qnqn54ujscgmqy2v5dw34lyfn6pfsea32ewmnmavv32enf02z4rss8f9fk5s55t4wrqh6kvdqcxx79zwtkkhtqvugrgs";
 
@@ -135,12 +140,6 @@ describe("selectUtxos — deterministic cases", () => {
   });
 });
 
-import { buildAndSubmitTransfer } from "../src/tx.js";
-import { resetProvider } from "../src/provider.js";
-import { deriveWallet } from "../src/wallet.js";
-import { stubProvider } from "./helpers/stub-provider.js";
-import { TEST_MNEMONIC } from "./helpers/mnemonic.js";
-
 describe("buildAndSubmitTransfer — self-regression", () => {
   test("given fixed UTxOs, pp, tip, and Math.random=0, produces deterministic tx", async () => {
     const origRandom = Math.random;
@@ -172,7 +171,8 @@ describe("buildAndSubmitTransfer — self-regression", () => {
       // buildAndSubmitTransfer returns the provider.submitTx response
       strictEqual(txHash, "stub_tx_hash");
       // The stubProvider captured the submitted CBOR hex — freeze it as golden
-      const submittedHex = (provider as unknown as { submitLog: string[] }).submitLog[0]!;
+      const submittedHex = provider.submitLog[0];
+      if (submittedHex === undefined) throw new Error("provider.submitTx was never called");
       strictEqual(typeof submittedHex, "string");
       strictEqual(submittedHex.length > 0, true);
       // Golden frozen from first deterministic run.
