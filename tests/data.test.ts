@@ -94,6 +94,39 @@ describe("Data.from — round-trip", () => {
   });
 });
 
+describe("Data.to — Map<PlutusField, PlutusField>", () => {
+  test("encodes an empty Map to CBOR empty map", () => {
+    // Empty Plutus Data Map encodes to CBOR empty map: 0xa0
+    strictEqual(Data.to(new Map()), "a0");
+  });
+
+  test("encodes bytes → bigint entries as a CBOR map", () => {
+    // Map with one entry: hex "deadbeef" → 42n
+    // CBOR map-1 header (0xa1) + key (cborBytes("deadbeef")=0x44deadbeef) + value (cborUint(42)=0x182a)
+    // Total: 0xa1 0x44 0xdeadbeef 0x18 0x2a
+    const m = new Map<string, bigint>([["deadbeef", 42n]]);
+    strictEqual(Data.to(m), "a144deadbeef182a");
+  });
+
+  test("Data.from round-trip preserves Map structure", () => {
+    const orig = new Map<string, bigint>([
+      ["deadbeef", 1n],
+      ["cafebabe", 2n],
+    ]);
+    const encoded = Data.to(orig);
+    const decoded = Data.from(encoded);
+    if (!(decoded instanceof Map)) throw new Error("expected Map");
+    strictEqual(decoded.size, 2);
+    // Map iteration order follows insertion order in JS; CBOR maps preserve order
+    // during decode, so decoded keys should appear in the same order as orig keys.
+    const entries = Array.from(decoded.entries());
+    strictEqual(entries[0]![0], "deadbeef");
+    strictEqual(entries[0]![1], 1n);
+    strictEqual(entries[1]![0], "cafebabe");
+    strictEqual(entries[1]![1], 2n);
+  });
+});
+
 describe("applyParamsToScript", () => {
   // Regression test: lock cmttk's current output for a known validator + param.
   // If cmttk's UPLC codec changes output bytes for the same input, this fires.
