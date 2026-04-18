@@ -134,3 +134,51 @@ describe("selectUtxos — deterministic cases", () => {
     strictEqual(inputTotal.lovelace, 6_000_000n);
   });
 });
+
+import { buildAndSubmitTransfer } from "../src/tx.js";
+import { resetProvider } from "../src/provider.js";
+import { deriveWallet } from "../src/wallet.js";
+import { stubProvider } from "./helpers/stub-provider.js";
+import { TEST_MNEMONIC } from "./helpers/mnemonic.js";
+
+describe("buildAndSubmitTransfer — self-regression", () => {
+  test("given fixed UTxOs, pp, tip, and Math.random=0, produces deterministic tx", async () => {
+    const origRandom = Math.random;
+    Math.random = () => 0;
+    try {
+      resetProvider(); // cmttk's getProvider caches; ensure a fresh one isn't used
+      // Use deriveWallet to get a valid CIP-1852 key — PrivateKey from
+      // noble-bip32ed25519 rejects arbitrary byte patterns for kL.
+      const wallet = await deriveWallet(TEST_MNEMONIC, "preprod");
+      const provider = stubProvider({
+        utxos: [
+          { tx_hash: "a".repeat(64), tx_index: 0, value: "10000000", asset_list: [] },
+        ],
+        pp: {
+          minFeeA: 44, minFeeB: 155381, coinsPerUtxoByte: 4310,
+          priceMem: 0.0577, priceStep: 0.0000721,
+        },
+        tip: { slot: 50_000_000, block: 1_000_000, time: Date.now() },
+      });
+
+      const txHash = await buildAndSubmitTransfer({
+        provider,
+        fromAddress: wallet.address,
+        toAddress: wallet.address, // self-send — simplest case
+        assets: { lovelace: 2_000_000n },
+        signingKey: wallet.paymentKey,
+      });
+
+      // buildAndSubmitTransfer returns the provider.submitTx response
+      strictEqual(txHash, "stub_tx_hash");
+      // The stubProvider captured the submitted CBOR hex — freeze it as golden
+      const submittedHex = (provider as unknown as { submitLog: string[] }).submitLog[0]!;
+      strictEqual(typeof submittedHex, "string");
+      strictEqual(submittedHex.length > 0, true);
+      // Golden frozen from first deterministic run.
+      strictEqual(submittedHex, "84a400d9010281825820aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa000182a20058390000b7847c89d5721592fc0cc8932f50a8f8258b39b93861140a1b99fbc2f45a16a6685616e566c00fc081fe59f8bd7ab679ee15e9ce203446011a001e8480a20058390000b7847c89d5721592fc0cc8932f50a8f8258b39b93861140a1b99fbc2f45a16a6685616e566c00fc081fe59f8bd7ab679ee15e9ce203446011a007270e0021a0007a120031a02faf404a1008182582063c5d69570349e4233a0575811464f0e8a3fd329abe76e9bdc3d3f1b959821795840495ee752e743ec938f79351f78f4155e2a45fca4a667eef895c4913c88a7eb59ed1102353a33315e4f6dbc09be606db78bb47e929ca8be96bc5f6bd49fd95206f5f6");
+    } finally {
+      Math.random = origRandom;
+    }
+  });
+});
