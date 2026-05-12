@@ -24,7 +24,7 @@ import {
 } from "./cbor.js";
 import type { CborValue } from "./cbor.js";
 import type { CardanoProvider, ProtocolParams } from "./provider.js";
-import { PrivateKey } from "noble-bip32ed25519";
+import { PrivateKey } from "@mwaddip/noble-bip32ed25519";
 import { blake2b } from "@noble/hashes/blake2b";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -372,7 +372,7 @@ function buildWitnessSet(
   txBodyHash: Uint8Array,
   kL: Uint8Array,
   kR: Uint8Array,
-  PrivateKey: typeof import("noble-bip32ed25519").PrivateKey,
+  PrivateKey: typeof import("@mwaddip/noble-bip32ed25519").PrivateKey,
 ): {
   witnessSet: Uint8Array;
   pubKeyBytes: Uint8Array;

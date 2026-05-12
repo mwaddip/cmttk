@@ -10,7 +10,7 @@
  * Fee calculation: two-pass deterministic (build → measure → compute → rebuild).
  */
 import { cborUint, cborBytes, cborArray, cborMap, cborTag, cborHeader, hexToBytes, bytesToHex, decodeCbor, parseCborMap, } from "./cbor.js";
-import { PrivateKey } from "noble-bip32ed25519";
+import { PrivateKey } from "@mwaddip/noble-bip32ed25519";
 import { blake2b } from "@noble/hashes/blake2b";
 // ── Address helpers ─────────────────────────────────────────────────────────
 const BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";

@@ -7,7 +7,7 @@
  *   m/1852'/1815'/0'/2/0  — stake key
  */
 
-import { Bip32PrivateKey } from "noble-bip32ed25519";
+import { Bip32PrivateKey } from "@mwaddip/noble-bip32ed25519";
 import { mnemonicToEntropy, validateMnemonic } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { bech32 } from "bech32";

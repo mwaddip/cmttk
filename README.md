@@ -14,7 +14,7 @@ cmttk handles the core operations that Cardano dApp backends need: derive wallet
 | `data.ts` | Lucid's `Constr`, `Data.to/from` | 5KB vs pulled in all of CML |
 | `tx.ts` | Lucid's transaction builder | 20KB vs ~3MB bundled |
 | `provider.ts` | `@lucid-evolution/provider`, `@blockfrost/blockfrost-js` | 8KB vs 40MB SDK |
-| `wallet.ts` | `@stricahq/bip32ed25519` + `libsodium-wrappers-sumo` | Uses `noble-bip32ed25519` (4.5KB) |
+| `wallet.ts` | `@stricahq/bip32ed25519` + `libsodium-wrappers-sumo` | Uses `@mwaddip/noble-bip32ed25519` (4.5KB) |
 | `time.ts` | Lucid internal slot conversion | 1KB |
 
 ## How it works
