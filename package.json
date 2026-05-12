@@ -1,6 +1,6 @@
 {
   "name": "@mwaddip/cmttk",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Cardano Minimal Transaction Toolkit — pure TypeScript, no WASM",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,11 +22,11 @@
     "prepublishOnly": "npm test && npm run build"
   },
   "dependencies": {
-    "@noble/curves": "^1.8.0",
-    "@noble/hashes": "^1.7.0",
+    "@noble/curves": "^2.2.0",
+    "@noble/hashes": "^2.2.0",
     "@scure/bip39": "^2.0.1",
     "bech32": "^2.0.0",
-    "@mwaddip/noble-bip32ed25519": "^0.1.1"
+    "@mwaddip/noble-bip32ed25519": "^0.1.2"
   },
   "devDependencies": {
     "@harmoniclabs/cbor": "^2.0.1",
@@ -34,7 +34,7 @@
     "@harmoniclabs/uplc": "^2.0.6",
     "@types/node": "latest",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   },
   "engines": {
     "node": ">=18.0.0"

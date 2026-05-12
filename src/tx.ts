@@ -25,7 +25,7 @@ import {
 import type { CborValue } from "./cbor.js";
 import type { CardanoProvider, ProtocolParams } from "./provider.js";
 import { PrivateKey } from "@mwaddip/noble-bip32ed25519";
-import { blake2b } from "@noble/hashes/blake2b";
+import { blake2b } from "@noble/hashes/blake2.js";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 

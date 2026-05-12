@@ -11,7 +11,7 @@
  */
 import { cborUint, cborBytes, cborArray, cborMap, cborTag, cborHeader, hexToBytes, bytesToHex, decodeCbor, parseCborMap, } from "./cbor.js";
 import { PrivateKey } from "@mwaddip/noble-bip32ed25519";
-import { blake2b } from "@noble/hashes/blake2b";
+import { blake2b } from "@noble/hashes/blake2.js";
 // ── Address helpers ─────────────────────────────────────────────────────────
 const BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 /** Decode a bech32 Cardano address to raw bytes (hex). */

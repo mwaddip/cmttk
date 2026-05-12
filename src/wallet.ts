@@ -11,6 +11,7 @@ import { Bip32PrivateKey } from "@mwaddip/noble-bip32ed25519";
 import { mnemonicToEntropy, validateMnemonic } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { bech32 } from "bech32";
+import { hexToBytes, bytesToHex, concatBytes } from "./cbor.js";
 import type { CardanoNetwork } from "./types.js";
 
 export interface CardanoWallet {
@@ -31,10 +32,10 @@ export interface CardanoWallet {
  */
 function buildBaseAddress(paymentKeyHash: string, stakeKeyHash: string, networkId: number): string {
   const header = networkId & 0x0f;
-  const payload = Buffer.concat([
-    Buffer.from([header]),
-    Buffer.from(paymentKeyHash, "hex"),
-    Buffer.from(stakeKeyHash, "hex"),
+  const payload = concatBytes([
+    new Uint8Array([header]),
+    hexToBytes(paymentKeyHash),
+    hexToBytes(stakeKeyHash),
   ]);
   const words = bech32.toWords(payload);
   const prefix = networkId === 1 ? "addr" : "addr_test";
@@ -56,7 +57,7 @@ export async function deriveWallet(
   }
 
   const entropy = mnemonicToEntropy(mnemonic, wordlist);
-  const rootKey = Bip32PrivateKey.fromEntropy(Buffer.from(entropy));
+  const rootKey = Bip32PrivateKey.fromEntropy(entropy);
 
   // CIP-1852 derivation path: m/1852'/1815'/0'
   // Hardened derivation uses index + 0x80000000
@@ -76,8 +77,8 @@ export async function deriveWallet(
   const stakePubKey = stakePrivKey.toPublicKey();
 
   // Get key hashes (blake2b-224, computed by the library)
-  const paymentKeyHash = Buffer.from(paymentPubKey.hash()).toString("hex");
-  const stakeKeyHash = Buffer.from(stakePubKey.hash()).toString("hex");
+  const paymentKeyHash = bytesToHex(paymentPubKey.hash());
+  const stakeKeyHash = bytesToHex(stakePubKey.hash());
 
   // Build bech32 base address (type 0: payment key hash + stake key hash)
   const networkId = network === "mainnet" ? 1 : 0;

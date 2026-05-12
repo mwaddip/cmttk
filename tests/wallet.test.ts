@@ -2,7 +2,7 @@ import { test, describe } from "node:test";
 import { strictEqual, rejects } from "node:assert/strict";
 import { deriveWallet } from "../src/wallet.js";
 import { bytesToHex } from "../src/cbor.js";
-import { ed25519 } from "@noble/curves/ed25519";
+import { ed25519 } from "@noble/curves/ed25519.js";
 import { PrivateKey } from "@mwaddip/noble-bip32ed25519";
 import { TEST_MNEMONIC } from "./helpers/mnemonic.js";
 
